@@ -1,0 +1,116 @@
+---
+title: "R21 Prelim ProjectR Analysis"
+date: "210302"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(projectR)
+library(CoGAPS)
+library(ggplot2)
+library(DESeq2)
+library(gplots)
+
+```
+
+
+
+# START 
+    Goal/Purpose of operations: 
+    quick summary 
+    
+    Finished psedocode on: Date
+    
+    System which operations were done on: my laptop(on cheaha), lab mac etc... 
+    
+    GitHub Repo:
+    
+    Directory of operations: /path
+    
+    Scripts being edited for operations: filename(s)
+    
+    Data being used: description and location
+    
+    Papers and tools: deseq with paper 
+
+# STEPS
+### Set working directory 
+### load in data
+### Analysis
+comments, comments
+
+### Save Data
+### Save Figures
+    
+# END
+    Location of final scripts:
+    
+    Location of data produced:
+    
+    Dates when operations were done:
+    
+## GitHub Documents
+
+This is an R Markdown format used for publishing markdown documents to GitHub. When you click the **Knit** button all R code chunks are run and a markdown file (.md) suitable for publishing to GitHub is generated.
+
+## Including Code
+
+You can include R code in the document as follows:
+
+```{r}
+#Mouse data read-in
+mouse_data <- read.delim("mouse_fixed_raw_counts.txt", header = TRUE, row.names = 1, sep = "\t", stringsAsFactors = FALSE)
+mouse_data <- mouse_data[, -c(1:3)]
+mouse_info <- read.csv("mouse_info.csv", header = TRUE)
+
+#Normalization
+t_mouse_data <- t(mouse_info)
+mouse_matrix <- cbind(t_mouse_data, mouse_info)
+mouse_dds <- DESeqDataSetFromMatrix(mouse_data, colData = mouse_info, design = ~ AQ)
+mouse_dds <- DESeq(mouse_dds)
+mouse_res <- results(mouse_dds)
+mouse_vsd <- vst(mouse_dds, blind = FALSE)
+mouse_deseq2_pca <- plotPCA(mouse_vsd, intgroup = c("AQ", "Diet"))
+mouse_deseq2_pca
+
+#MOUSE pNMF
+mouse_vsd_matrix <- assay(mouse_vsd)
+AP.mouse <- CoGAPS(mouse_vsd_matrix, nIterations = 1000)
+AP.mouse_mean <- AP.mouse$Amean
+pNMF <-heatmap.2(as.matrix(AP.mouse),col=bluered, trace='none',
+                 distfun=function(c) as.dist(1-cor(t(c))) ,
+                 cexCol=1,cexRow=.5,scale = "row",
+                 hclustfun=function(x) hclust(x, method="average"))
+plot(AP.mouse)
+pNMF
+#the output varies greatly. trying to change parameters to make a better model
+params <- new("CogapsParams")
+params <- setParam(params, "seed", 800)
+
+AP.mouse_seed800 <- CoGAPS(mouse_vsd_matrix, params, nIterations = 1000)
+pNMF <-heatmap.2(as.matrix(AP.mouse_seed800),col=bluered, trace='none',
+                 distfun=function(c) as.dist(1-cor(t(c))) ,
+                 cexCol=1,cexRow=.5,scale = "row",
+                 hclustfun=function(x) hclust(x, method="average"))
+plot(AP.mouse_seed800)
+pNMF
+#the output varies greatly. trying to change parameters to make a better model
+params <- new("CogapsParams")
+params <- setParam(params, "seed", 800)
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
