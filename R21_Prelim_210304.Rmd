@@ -14,6 +14,9 @@ library(CoGAPS)
 library(ggplot2)
 library(DESeq2)
 library(gplots)
+library(dplyr)
+library(tibble)
+library(AnnotationDbi)
 
 ```
 
@@ -66,41 +69,154 @@ You can include R code in the document as follows:
 mouse_data <- read.delim("mouse_fixed_raw_counts.txt", header = TRUE, row.names = 1, sep = "\t", stringsAsFactors = FALSE)
 mouse_data <- mouse_data[, -c(1:3)]
 mouse_info <- read.csv("mouse_info.csv", header = TRUE)
+mouse_metadata <- read.delim("SraRunTable.txt", header = TRUE, sep = ",")
+mouse_meta <- mouse_metadata[, c(1, 14, 16, 18)]
+#replace white space with underscores in "diet" column
+mouse_meta$diet <- gsub(" ", "_", mouse_meta$diet)
 
 #Normalization
-t_mouse_data <- t(mouse_info)
-mouse_matrix <- cbind(t_mouse_data, mouse_info)
-mouse_dds <- DESeqDataSetFromMatrix(mouse_data, colData = mouse_info, design = ~ AQ)
+#t_data <- mouse_data %>% t() %>% left_join(mouse_meta, ., by = "Run")
+t_data <- t(mouse_data)
+t_data <- t_data %>% as.data.frame() %>% rownames_to_column(., var = "Run")
+t_data <- left_join(mouse_meta, t_data, by = "Run")
+t_data$diet <- gsub(" ", "_", t_data$diet)
+mouse_dds <- DESeqDataSetFromMatrix(mouse_data, colData = mouse_meta, design = ~ diet)
 mouse_dds <- DESeq(mouse_dds)
 mouse_res <- results(mouse_dds)
 mouse_vsd <- vst(mouse_dds, blind = FALSE)
-mouse_deseq2_pca <- plotPCA(mouse_vsd, intgroup = c("AQ", "Diet"))
+mouse_deseq2_pca <- plotPCA(mouse_vsd, intgroup = "Group")
 mouse_deseq2_pca
+mouse_vsd_matrix <- assay(mouse_vsd)
+
+#annotation
+library(org.Mm.eg.db)
+#retrieve conversion info from one ID type to another
+symbols_mouse <- AnnotationDbi::select(org.Mm.eg.db, keys = rownames(mouse_data), columns = c("SYMBOL", "ENTREZID"),keytype = "ENSEMBL")
+#determine indices for non-NA genes
+non_na_symbols <- which(is.na(symbols_mouse$SYMBOL) == FALSE)
+#return only the genes with annotations using indices
+symbols_mouse <- symbols_mouse[non_na_symbols, ]
+#determine indices for non-duplicated genes
+no_dups_symbols <- which(duplicated(symbols_mouse$SYMBOL) == FALSE)
+#return only non-dup genes using indices
+symbols_mouse <- symbols_mouse[no_dups_symbols, ]
+
+BiocManager::install("org.Mm.eg.db")
+library(org.Mm.eg.db)
+org.Mm.eg.db
+keys_mouse <- keys(org.Mm.eg.db, keytype = "SYMBOL")
+cols_mouse <- c("ENSEMBL", "ENTREZID")
+select(org.Mm.eg.db, keys = keys_mouse, columns = cols_mouse, keytype = "SYMBOL")
+#needs to be character vector for "keys"
+ens_mouse_char <- as.character(mouse_matrix)
+# Return the Ensembl IDs for a set of genes
+annotations_mouse <- AnnotationDbi::select(org.Mm.eg.db, keys = rownames(mouse_data), columns = c("SYMBOL", "ENTREZID"),keytype = "ENSEMBL")
+# Determine the indices for the non-NA genes
+non_na_mouse <- which(is.na(annotations_mouse$SYMBOL) == FALSE)
+# Return only the genes with annotations using indices
+annotations_mouse <- annotations_mouse[non_na_idx, ]
+# Determine the indices for the non-duplicated genes
+non_dups_mouse <- which(duplicated(annotations_mouse$SYMBOL) == FALSE)
+# Return only the non-duplicated genes using indices
+annotations_mouse <- annotations_mouse[non_dups_mouse, ]
+#write.csv(annotations_mouse, file = "GPCR_Genes_Entrez_Ensembl_IDs_Mouse")
+#GPCR_mouse_genes <- annotations_mouse$ENSEMBL
+
+
+#HUMAN data read in
+human_data <- read.delim("human_fixed_raw_counts.txt", header = TRUE, row.names = 1, sep = "\t")
+human_data <- human_data[, -c(1:3)]
+human_info <- read.csv("human_info.csv", header = TRUE, sep = ",")
+human_info <- human_info[c(1:58),]
+
+#HUMAN normalization
+human_dds <- DESeqDataSetFromMatrix(human_data, colData = human_info, design = ~ BMI)
+human_dds <- DESeq(human_dds)
+human_res <- results(human_dds)
+human_vsd <- vst(human_dds, blind = FALSE)
+human_vsd_matrix <- assay(human_vsd)
+human_deseq2_pca <- plotPCA(human_vsd, intgroup = "PrePost")
+human_deseq2_pca
+
+
+```
+```{r}
+#MOUSE PCA
+pc_mouse <- prcomp(t(mouse_vsd_matrix))
+#find variance
+pc_var <- round(((pc_mouse$sdev)^2/sum(pc_mouse$sdev^2))*100,2)
+mouse_pca_df <- data.frame(cbind(pc_mouse$x, mouse_meta))
+
+#plot pca
+setCOL <- scale_colour_manual(values = c("blue","black","red","purple"), name="Diet")
+setFILL <- scale_fill_manual(values = c("blue","black","red","purple","green","orange"),guide = FALSE)
+setPCH <- scale_shape_manual(values=c(23,22,25), name="Genotype")
+
+pPCA <- ggplot(mouse_pca_df, aes(x=PC1, y=PC2, colour=diet, shape=Genotype,
+                         fill=Group)) +
+  setCOL + setPCH + setFILL +
+  theme(legend.position=c(0,0), legend.justification=c(0,0),
+        legend.direction = "horizontal",
+        panel.background = element_rect(fill = "white",colour=NA),
+        legend.background = element_rect(fill = "transparent",colour=NA),
+        plot.title = element_text(vjust = 0,hjust=0,face="bold")) +
+  labs(title = "PCA of hPSC PolyA RNAseq",
+       x=paste("PC1 (",pc_var[1],"% of varience)",sep=""),
+       y=paste("PC2 (",pc_var[2],"% of varience)",sep=""))
+
+pPCA
+simplepca <- ggplot(pc_mouse)
+simplepca
+
+```
+
+
+
+```{r}
 
 #MOUSE pNMF
-mouse_vsd_matrix <- assay(mouse_vsd)
-AP.mouse <- CoGAPS(mouse_vsd_matrix, nIterations = 1000)
-AP.mouse_mean <- AP.mouse$Amean
-pNMF <-heatmap.2(as.matrix(AP.mouse),col=bluered, trace='none',
-                 distfun=function(c) as.dist(1-cor(t(c))) ,
-                 cexCol=1,cexRow=.5,scale = "row",
-                 hclustfun=function(x) hclust(x, method="average"))
-plot(AP.mouse)
-pNMF
+
 #the output varies greatly. trying to change parameters to make a better model
 params <- new("CogapsParams")
-params <- setParam(params, "seed", 800)
+params <- setParam(params, "seed", 1000)
 
-AP.mouse_seed800 <- CoGAPS(mouse_vsd_matrix, params, nIterations = 1000)
-pNMF <-heatmap.2(as.matrix(AP.mouse_seed800),col=bluered, trace='none',
+AP.mouse_seed1000 <- CoGAPS(mouse_vsd_matrix, params, nIterations = 1000)
+#heatmap
+pNMF <-heatmap.2(as.matrix(AP.mouse_seed1000),col=bluered, trace='none',
                  distfun=function(c) as.dist(1-cor(t(c))) ,
-                 cexCol=1,cexRow=.5,scale = "row",
+                 cexCol=1,cexRow=.5,scale = "row", labRow = rownames(mouse_vsd_matrix), xlab = "Patterns",
                  hclustfun=function(x) hclust(x, method="average"))
 plot(AP.mouse_seed800)
 pNMF
-#the output varies greatly. trying to change parameters to make a better model
-params <- new("CogapsParams")
-params <- setParam(params, "seed", 800)
+
+
+#Data to project into PC's from mouse expression data (Projecting mouse onto human data? ) 
+human_NMF <- projectR(human_vsd_matrix,loadings=AP.mouse_seed1000, full=TRUE,
+                      dataNames=rownames(mouse_vsd_matrix))
+
+
+dNMF2ESepi<- data.frame(cbind(t(NMF2ESepi),pd.ESepiGen4c1l))
+#plot pca
+setEpiCOL <- scale_colour_manual(values = c("red","green","blue","black"),
+                                 guide = guide_legend(title="Lineage"))
+pNMF2ESepiGen4c1l <- ggplot(dNMF2ESepi, aes(x=X1, y=X2, colour=Condition)) +
+  geom_point(size=5) + setEpiCOL +
+  theme(legend.position=c(0,0), legend.justification=c(0,0),
+        panel.background = element_rect(fill = "white"),
+        legend.direction = "horizontal",
+        plot.title = element_text(vjust = 0,hjust=0,face="bold"))
+labs(title = "Encode RNAseq in target PC1 & PC2",
+     x=paste("Projected PC1 (",round(PCA2ESepi[[2]][1],2),"% of varience)",sep=""),
+     y=paste("Projected PC2 (",round(PCA2ESepi[[2]][2],2),"% of varience)",sep=""))
+
+pNMF2ESepiGen4c1l
+
+
+```
+
+
+```{r}
+
 
 
 ```
