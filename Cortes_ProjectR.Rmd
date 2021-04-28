@@ -1,0 +1,170 @@
+---
+title: "ProjectR"
+author: "Lizzy Ramsey"
+date: "4/26/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(projectR)
+library(CoGAPS)
+library(ggplot2)
+library(DESeq2)
+library(gplots)
+library(dplyr)
+library(tibble)
+library(AnnotationDbi)
+library(devtools)
+library(ggbiplot)
+library(biomaRt)
+```
+
+### Purpose
+Publicly available mouse and human datasets of pre/post gene expression in skeletal muscle were used to project mouse patterns onto human data using ProjectR package. The end goal is to find latent variables in mouse gene expression to project onto human data to make mouse data better recapitulate human data.
+Built with 'r getRversion()'
+
+  
+**Overview**  
+Step 1: Load packages  
+Step 2: Read in RNAseq raw counts  
+Step 3: Normalize using DESeq2  
+Step 4: PCA of mouse data  
+Step 5: Convert mouse Ensembl gene ID's to symbols  
+Step 6: Convert mouse symbols to human symbols  
+  
+**Data**  
+Mouse Data: *GSE97718*  
+- fastq's downloaded from ENA  
+- data preprocessed with RNA-seq STAR pipeline by Lara Ianov  
+  
+Human Data: *GSE108643*  
+- fastq's downloaded from ENA  
+- data preprocessed with RNA-seq STAR pipeline by Lara Ianov  
+  
+**Read in mouse data**  
+```{r, copy = TRUE}
+#Load in raw counts for Mouse pre/post exercise experiment
+mouse_counts <- read.delim("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/mouse210321_fixed_raw_counts.txt", header = TRUE, row.names = 1, sep = "\t", stringsAsFactors = FALSE)
+mouse_counts <- mouse_counts[, -c(1:3)]
+```
+  
+**Make metadata table**  
+Metadata/info table not supplied with this study. Using GEO, manually created (see here *https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE97718*)
+```{r}
+#metadata not included with this dataset.. 
+mouse_info <- read.csv("MouseSraRunTable.txt", header = TRUE, sep = ",")
+Name <- c("CON_pre4","HFD_pre2","HFD_pre3","HFD_pre4","CON_post1","CON_post2","CON_post3","CON_post4","HFD_post4","CON_pre3","CON_pre2","HFD_post2","HFD_post3","HFD_pre1","CON_pre1","HFD_post1")
+mouse_info <- cbind(mouse_info, Name)
+#making columns specific to condition (diet and exercise)
+mouse_info <- mutate(mouse_info, Diet = ifelse(grepl("HFD", Name, ignore.case = TRUE), "HFD", "CON"))
+mouse_info <- mutate(mouse_info, Exercise = ifelse(grepl("pre", Name, ignore.case = TRUE), "pre", "post"))
+
+
+```
+
+**DESeq2**  
+DESeq2 was used to normalize data
+
+```{r, message=FALSE}
+mouse_dds <- DESeqDataSetFromMatrix(mouse_counts, colData = mouse_info, design = ~ Exercise)
+mouse_dds <- DESeq(mouse_dds)
+#Contrast for log fold change, pre = numerator, post = denominator
+mouse_res <- results(mouse_dds, contrast = c("Exercise",  "pre", "post"))
+mouse_vsd <- vst(mouse_dds, blind = FALSE)
+```
+
+```{r}
+mouse_deseq2_pca <- DESeq2::plotPCA(mouse_vsd, intgroup = "Exercise")
+mouse_deseq2_pca
+```
+
+**Gene ID Conversion**  
+```{r}
+#preparing outputs for conversion
+mouse_vsd_matrix <- assay(mouse_vsd)
+rownames(mouse_vsd_matrix) <- sub("\\..*", "", rownames(mouse_vsd_matrix))
+mouse_vsd2 <- mouse_vsd_matrix %>% as.data.frame() %>% rownames_to_column(., "ENSEMBL")
+write.csv(mouse_info, file= "New_Mouse_Metadata")
+
+```
+
+**AnnotationDbi for symbols**  
+
+```{r, message=FALSE}
+#annotation
+library(org.Mm.eg.db)
+#retrieve conversion info from one ID type to another
+#REPLACE test_mouse to mouse_anno
+mouse_anno <- AnnotationDbi::select(org.Mm.eg.db, keys = rownames(mouse_vsd_matrix), columns = c("SYMBOL"),keytype = "ENSEMBL")
+#determine indices for non-NA genes
+mousenon_na_symbols <- which(is.na(mouse_anno$SYMBOL) == FALSE)
+#return only the genes with annotations using indices
+mouse_anno <- mouse_anno[mousenon_na_symbols, ]
+#determine indices for non-duplicated genes
+mouseno_dups_symbols <- which(duplicated(mouse_anno$SYMBOL) == FALSE)
+#return only non-dup genes using indices
+mouse_anno <- mouse_anno[mouseno_dups_symbols, ]
+#add symbols to normalized mouse data
+mouse_symbol <- inner_join(mouse_anno, mouse_vsd2, by = "ENSEMBL")
+mouse_symbol <- column_to_rownames(mouse_symbol, var = "SYMBOL")
+mouse_symbol <- mouse_symbol[,-1]
+```
+
+**Convert from mouse to human orthologous symbols**  
+To be able to compare gene expression data from mouse to human, must convert first to orthologous genes
+
+```{r}
+## Basic function to convert mouse to human gene names
+convertMouseGeneList <- function(x){
+require("biomaRt")
+human = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+mouse = useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+genesV2 = getLDS(attributes = c("mgi_symbol"), filters = "mgi_symbol", values = x , mart = mouse, attributesL = c("hgnc_symbol"), martL = human, uniqueRows=T)
+return(genesV2)
+}
+
+```
+
+
+```{r}
+#Use convertMouseGeneList to convert to human genes
+mouse_to_human_genes <- convertMouseGeneList(mouse_anno$SYMBOL)
+conv_mouse <- mouse_symbol %>% rownames_to_column(., var = "MGI.symbol") %>% left_join(., mouse_to_human_genes, by = "MGI.symbol")
+#determine non-NA genes
+non_na_mouse <- which(is.na(conv_mouse$HGNC.symbol) == FALSE)
+#return only the genes with annotations using indices
+conv_mouse <- conv_mouse[non_na_mouse, ]
+#determine indices for non-duplicated genes
+no_dups_mouse <- which(duplicated(conv_mouse$HGNC.symbol) == FALSE)
+#return only non-dup genes using indices
+conv_mouse <- conv_mouse[no_dups_mouse, ]
+rownames(conv_mouse) <- NULL 
+conv_mouse <- conv_mouse %>% as.data.frame() %>% column_to_rownames(., var = "HGNC.symbol") 
+conv_mouse <- conv_mouse[,c(2:17)]
+
+```
+
+**ProjectR NMF using CoGAPS**  
+How many patterns? Might need to finish FEA to figure out. 
+```{r}
+#MOUSE NMF
+#parameters for GoGAPS
+params <- new("CogapsParams")
+params <- setParam(params, "seed", 1000)
+```
+
+```{r}
+#CoGAPS to find patterns in the data
+AP_mouse <- CoGAPS(conv_mouse, params, nIterations = 5000)
+plot(AP_mouse)
+```
+
+```{r}
+mouse_featloadings <- as.data.frame(AP_mouse$featureLoadings)
+mouse_samplefactors <- as.data.frame(AP_mouse$sampleFactors)
+mouse_amp <- ggplot(mouse_samplefactors, aes(x=Pattern_1, y=Pattern_2)) + geom_point()
+mouse_amp 
+```
+
+
