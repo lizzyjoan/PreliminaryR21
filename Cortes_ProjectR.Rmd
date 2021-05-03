@@ -22,7 +22,7 @@ library(biomaRt)
 
 ### Purpose
 Publicly available mouse and human datasets of pre/post gene expression in skeletal muscle were used to project mouse patterns onto human data using ProjectR package. The end goal is to find latent variables in mouse gene expression to project onto human data to make mouse data better recapitulate human data.
-Built with 'r getRversion()'
+Built with r getRversion()
 
   
 **Overview**  
@@ -32,6 +32,7 @@ Step 3: Normalize using DESeq2
 Step 4: PCA of mouse data  
 Step 5: Convert mouse Ensembl gene ID's to symbols  
 Step 6: Convert mouse symbols to human symbols  
+Step 7: NMF method and visualization
   
 **Data**  
 Mouse Data: *GSE97718*  
@@ -42,14 +43,15 @@ Human Data: *GSE108643*
 - fastq's downloaded from ENA  
 - data preprocessed with RNA-seq STAR pipeline by Lara Ianov  
   
-**Read in mouse data**  
+**Read in Mouse Data**  
 ```{r, copy = TRUE}
 #Load in raw counts for Mouse pre/post exercise experiment
 mouse_counts <- read.delim("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/mouse210321_fixed_raw_counts.txt", header = TRUE, row.names = 1, sep = "\t", stringsAsFactors = FALSE)
 mouse_counts <- mouse_counts[, -c(1:3)]
 ```
-  
-**Make metadata table**  
+
+
+**Make Mouse Metadata Table**  
 Metadata/info table not supplied with this study. Using GEO, manually created (see here *https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE97718*)
 ```{r}
 #metadata not included with this dataset.. 
@@ -59,12 +61,22 @@ mouse_info <- cbind(mouse_info, Name)
 #making columns specific to condition (diet and exercise)
 mouse_info <- mutate(mouse_info, Diet = ifelse(grepl("HFD", Name, ignore.case = TRUE), "HFD", "CON"))
 mouse_info <- mutate(mouse_info, Exercise = ifelse(grepl("pre", Name, ignore.case = TRUE), "pre", "post"))
-
+mouse_info <- column_to_rownames(mouse_info, var = "Name")
 
 ```
 
-**DESeq2**  
-DESeq2 was used to normalize data
+**Read in Human Data** 
+```{r}
+#HUMAN data read in
+human_data <- read.delim("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/human_fixed_raw_counts.txt", header = TRUE, row.names = 1, sep = "\t")
+human_data <- human_data[, -c(1:3)]
+human_info <- read.csv("human_info.csv", header = TRUE, sep = ",")
+human_info <- human_info[c(1:58),]
+
+```
+
+**DESeq2 for Mouse**  
+DESeq2 was used to normalize data  
 
 ```{r, message=FALSE}
 mouse_dds <- DESeqDataSetFromMatrix(mouse_counts, colData = mouse_info, design = ~ Exercise)
@@ -75,11 +87,37 @@ mouse_vsd <- vst(mouse_dds, blind = FALSE)
 ```
 
 ```{r}
-mouse_deseq2_pca <- DESeq2::plotPCA(mouse_vsd, intgroup = "Exercise")
+mouse_deseq2_pca <- DESeq2::plotPCA(mouse_vsd, intgroup = "Exercise", )
 mouse_deseq2_pca
 ```
 
-**Gene ID Conversion**  
+**DESeq2 for Human**  
+DESeq2 was used to normalize data  
+
+```{r, message = FALSE}
+#HUMAN normalization
+human_dds <- DESeqDataSetFromMatrix(human_data, colData = human_info, design = ~ PrePost)
+human_dds <- DESeq(human_dds)
+human_res <- results(human_dds, contrast = c("PrePost", "Pre", "Post"))
+human_vsd <- vst(human_dds, blind = FALSE)
+
+# trying to get lfc in order
+human_de <- cbind(LFC = human_res$log2FoldChange, Pval = human_res$pvalue)
+row.names(human_de) <- row.names(human_res)
+human_de_df <- as.data.frame(human_de)
+human_de_ordered <- human_de_df[order(-human_de_df$LFC), , drop = FALSE]
+```
+
+```{r, message = FALSE}
+human_vsd_matrix <- assay(human_vsd)
+human_deseq2_pca <- plotPCA(human_vsd, intgroup = "PrePost")
+human_deseq2_pca
+rownames(human_vsd_matrix) <- sub("\\..*", "", rownames(human_vsd_matrix))
+#back to df and make ensembl gene rownames into a column
+human_vsd_matrix <- human_vsd_matrix %>% as.data.frame() %>% rownames_to_column(., "ENSEMBL")
+```
+
+**Mouse Gene ID Conversion**  
 ```{r}
 #preparing outputs for conversion
 mouse_vsd_matrix <- assay(mouse_vsd)
@@ -89,14 +127,14 @@ write.csv(mouse_info, file= "New_Mouse_Metadata")
 
 ```
 
-**AnnotationDbi for symbols**  
+**AnnotationDbi for Mouse Symbols**  
 
 ```{r, message=FALSE}
 #annotation
 library(org.Mm.eg.db)
 #retrieve conversion info from one ID type to another
 #REPLACE test_mouse to mouse_anno
-mouse_anno <- AnnotationDbi::select(org.Mm.eg.db, keys = rownames(mouse_vsd_matrix), columns = c("SYMBOL"),keytype = "ENSEMBL")
+mouse_anno <- AnnotationDbi::select(org.Mm.eg.db, keys = rownames(mouse_vsd_matrix), columns = c("SYMBOL", "GO"),keytype = "ENSEMBL")
 #determine indices for non-NA genes
 mousenon_na_symbols <- which(is.na(mouse_anno$SYMBOL) == FALSE)
 #return only the genes with annotations using indices
@@ -107,8 +145,30 @@ mouseno_dups_symbols <- which(duplicated(mouse_anno$SYMBOL) == FALSE)
 mouse_anno <- mouse_anno[mouseno_dups_symbols, ]
 #add symbols to normalized mouse data
 mouse_symbol <- inner_join(mouse_anno, mouse_vsd2, by = "ENSEMBL")
-mouse_symbol <- column_to_rownames(mouse_symbol, var = "SYMBOL")
-mouse_symbol <- mouse_symbol[,-1]
+mouse_symbol_GO <- column_to_rownames(mouse_symbol, var = "SYMBOL")
+mouse_symbol <- mouse_symbol_GO[,c(5:20)]
+```
+
+**AnnotationDbi for Human Symbols**  
+
+```{r}
+#annotation
+BiocManager::install("org.Hs.eg.db")
+library(org.Hs.eg.db)
+#retrieve conversion info from one ID type to another
+symbols_human <- AnnotationDbi::select(org.Hs.eg.db, keys = human_vsd_matrix$ENSEMBL, columns = c("SYMBOL"),keytype = "ENSEMBL")
+#determine indices for non-NA genes
+non_na <- which(is.na(symbols_human$SYMBOL) == FALSE)
+#return only the genes with annotations using indices
+symbols_human <- symbols_human[non_na, ]
+#determine indices for non-duplicated genes
+no_dups_human <- which(duplicated(symbols_human$SYMBOL) == FALSE)
+#return only non-dup genes using indices
+symbols_human <- symbols_human[no_dups_human, ]
+human_symbol_data <- inner_join(symbols_human, human_vsd_matrix, by = "ENSEMBL")
+human_symbol_data <- column_to_rownames(human_symbol_data, var = "SYMBOL")
+human_symbol_data <- human_symbol_data[,-1]
+
 ```
 
 **Convert from mouse to human orthologous symbols**  
@@ -143,28 +203,119 @@ rownames(conv_mouse) <- NULL
 conv_mouse <- conv_mouse %>% as.data.frame() %>% column_to_rownames(., var = "HGNC.symbol") 
 conv_mouse <- conv_mouse[,c(2:17)]
 
+
+
 ```
 
-**ProjectR NMF using CoGAPS**  
+**ProjectR NMF Using CoGAPS**  
 How many patterns? Might need to finish FEA to figure out. 
 ```{r}
 #MOUSE NMF
 #parameters for GoGAPS
 params <- new("CogapsParams")
 params <- setParam(params, "seed", 1000)
+params <- setParam(params, "nPatterns", 14)
+
 ```
 
 ```{r}
 #CoGAPS to find patterns in the data
-AP_mouse <- CoGAPS(conv_mouse, params, nIterations = 5000)
+AP_mouse <- CoGAPS(conv_mouse, params, nIterations = 1000)
+getMeanChiSq(AP_mouse)
 plot(AP_mouse)
+
+```
+**Heatmap of Mouse NMF**  
+Visualizing NMF object
+```{r}
+#heatmap
+#Error in plot.new() : figure margins too large
+#trying par(mar) to change margins
+NMF_mouse <-heatmap.2(as.matrix(AP_mouse),col=bluered, trace='none',
+                 distfun=function(c) as.dist(1-cor(t(c))) ,
+                 cexCol=1,cexRow=.6,scale = "row", main = "Mouse Data: nPatterns 14, nIterations 5000", labRow = rownames(conv_mouse), xlab = "Patterns",
+                 hclustfun=function(x) hclust(x, method="average"))
+pdf("NewMouse_NMF_nPat14_nIt5000.pdf", NMF_mouse)
+NMF_mouse
+```
+**ProjectR PCA Projection**  
+The mouse NMF patterns can then be projected onto the human data
+```{r}
+#NMF to project into PC's from mouse expression data
+human_data <- as.matrix(human_symbol_data)
+human_NMF <- projectR(human_data,loadings=AP_mouse, full=TRUE,
+                     dataNames=rownames(human_data))
+
+#Using metadata and NMF projection to make a dataframe that can be plotted
+ human_meta <- column_to_rownames(human_info, var = "SRR")
+#dNMF <- human_NMF %>% data.frame() %>% t() %>% cbind(., )
+projection_NMF <- human_NMF$projection %>% t() %>% cbind(., human_meta)
+pval_NMF <- human_NMF$pval
+#plot pca
+projection_plot <- ggplot(projection_NMF, aes(x = Pattern_7, y = Pattern_8, colour = PrePost)) + geom_point() + ggtitle("Mouse Data NMF Patterns Projected onto Human Data")
+projection_plot
+ggsave("NMF_Mouse_Projected_to_Human_14pat5000it.pdf", projection_plot)
+
+
+```
+
+**PC Projection**  
+Another method to projections. Principal components are found for mouse and human data. Mouse PC's are used for loadings and projected onto human data.  
+```{r}
+pc_human <- prcomp(t(human_symbol_data))
+pc_mouse <- prcomp(t(conv_mouse))
+#find variance
+pc_var_mouse <- round(((pc_mouse$sdev)^2/sum(pc_mouse$sdev^2))*100,2)
+pca_mouse_df <- data.frame(cbind(pc_mouse$x, mouse_info))
 ```
 
 ```{r}
-mouse_featloadings <- as.data.frame(AP_mouse$featureLoadings)
-mouse_samplefactors <- as.data.frame(AP_mouse$sampleFactors)
-mouse_amp <- ggplot(mouse_samplefactors, aes(x=Pattern_1, y=Pattern_2)) + geom_point()
-mouse_amp 
+PCA_projectr <- projectR(human_data, loadings = pc_mouse, full = TRUE, dataNames = rownames(human_data))
+human_meta_t <- t(human_meta)
+PCA_projectr_t <- t(PCA_projectr[[1]])
+PCA_projectr_df <- cbind(PCA_projectr_t, human_meta)
+#[1] "18282 row names matched between data and loadings"
+#[1] "Updated dimension of data: 18282 58"
+
+#Plot PCA
+dPCA <- data.frame(cbind(t(PCA_projectr[[1]]),PCA_projectr_df))
+projected_PCA <- ggplot(PCA_projectr_df, aes(x = PC1, y = PC2, colour = PrePost)) + geom_point() + ggtitle("Mouse Principal Components Projected onto Human Data")
+projected_PCA
+ggsave("PCA_Method_Mouse_Projected_onto_Human.pdf", projected_PCA)
+
+#Alluvial Plot
+#alluvial <- alluvialMat()
+
 ```
 
+**ProjectR Clustering Method**  
+There’s 2 methods: cluster2pattern finds correlation of each gene’s expression by mean of cluster to define continuous weights. Then intersector tests significant overlap between 2 clustering objects. For these purposes, I think cluster2pattern is better for finding what we want (differences between clusters rather than overlaps). Requires a clustering object first.
+```{r}
+#Before making clustering object, need to decide on number of clusters
+#wss <- (nrow(conv_mouse)-1)*sum(apply(conv_mouse,2,var))
+#for (i in 2:15) wss[i] <- sum(kmeans(conv_mouse,
+#   centers=i, iter.max = 50, algorithm = "MacQueen")$withinss)
+#plot(1:15, wss, type="b", xlab="Number of Clusters",
+#  ylab="Within groups sum of squares")
 
+library(fpc)
+#pamk: partitioning around medoids clustering with the number of clusters estimated by optimum average silhouette width 
+part_clust_mouse <- pamk(conv_mouse, scaling = TRUE)
+print(part_clust_mouse)
+plot(part_clust_mouse$pamobject)
+
+# Ward Hierarchical Clustering
+mouse_dist <- dist(conv_mouse, method = "euclidean") # distance matrix
+hclust_fit <- hclust(mouse_dist, method="ward")
+plot(hclust_fit) # display dendrogram
+#looks like 3 clusters would be best 
+
+# Ward Hierarchical Clustering with Bootstrapped p values
+library(pvclust)
+fit <- pvclust(conv_mouse, method.hclust="ward",
+   method.dist="euclidean")
+plot(fit) # dendogram with p values
+# add rectangles around groups highly supported by the data
+pvrect(fit, alpha=.95)
+
+```
