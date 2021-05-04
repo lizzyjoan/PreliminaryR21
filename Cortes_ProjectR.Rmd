@@ -203,8 +203,6 @@ rownames(conv_mouse) <- NULL
 conv_mouse <- conv_mouse %>% as.data.frame() %>% column_to_rownames(., var = "HGNC.symbol") 
 conv_mouse <- conv_mouse[,c(2:17)]
 
-
-
 ```
 
 **ProjectR NMF Using CoGAPS**  
@@ -301,26 +299,67 @@ There’s 2 methods: cluster2pattern finds correlation of each gene’s expressi
 library(fpc)
 #pamk: partitioning around medoids clustering with the number of clusters estimated by optimum average silhouette width 
 part_clust_mouse <- pamk(conv_mouse, scaling = TRUE)
-print(part_clust_mouse)
 plot(part_clust_mouse$pamobject)
 
 # Ward Hierarchical Clustering
 mouse_dist <- dist(conv_mouse, method = "euclidean") # distance matrix
-hclust_fit <- hclust(mouse_dist, method="ward")
+hclust_fit <- hclust(mouse_dist, method="average")
 plot(hclust_fit) # display dendrogram
 #looks like 3 clusters would be best 
 
 # Ward Hierarchical Clustering with Bootstrapped p values
 library(pvclust)
-fit <- pvclust(conv_mouse, method.hclust="ward",
+#pvclust() provides p-values for hierarchical clustering based on multiscale bootstrap resampling-clusters that are highly supported by the data will have large p values.
+#pvclust clusters columns, not rows: transpose your data before using
+fit <- pvclust(conv_mouse, method.hclust="average",
    method.dist="euclidean")
 hclust_dendro_sig <- plot(fit) # dendogram with p values
 # add rectangles around groups highly supported by the data
 #pvrect(fit, alpha=.95)
-#savePlot(filename = "Mouse_Hclust_Dendrogram.pdf", hclust_dendro_sig)
+pdf(file = "Mouse_Hclust_Dendrogram.pdf", hclust_dendro_sig)
 
 ```
 ```{r}
 #mouse_clusters <- cluster2pattern(hclust_fit, NP = 3, Data = conv_mouse)
+#error "the standard deviation is zero"
+#RUNNING cluster2pattern() BREAKS R!!
+```
+  
+## Using Differentially Expressed Genes for Functional Enrichment Analysis ##
+
+**AnnotationDbi for DESeq2 Mouse Results**  
+
+```{r, message=FALSE}
+#Pull DESeq2 results for LFC and P-values, get rid of decimals in ensembl ID's
+mouse_de <- cbind(LFC = mouse_res$log2FoldChange, Pval = mouse_res$pvalue)
+row.names(mouse_de) <- row.names(mouse_res)
+rownames(mouse_de) <- sub("\\..*", "", rownames(mouse_de))
+mouse_de_df <- mouse_de %>% as.data.frame() %>% rownames_to_column(., "ENSEMBL")
+
+#Join annotations to DE gene list
+mouse_symbol_de <- inner_join(mouse_anno, mouse_de_df, by = "ENSEMBL")
+mouse_symbol_GO_de <- column_to_rownames(mouse_symbol_de, var = "SYMBOL")
+#This table has ensembl gene ID's, GO info, differential expression and p-values
+write.csv(mouse_symbol_GO_de, "Mouse_DE_GO.csv")
+#Only need LFC and p-values for FEA
+mouse_symbol_de <- mouse_symbol_GO_de[,c(5,6)]
+```
+
+```{r}
+#Mouse symbols need to be converted to human symbols for downstream analysis
+#Use convertMouseGeneList to convert to human genes
+mouse_to_human_genes_de <- convertMouseGeneList(mouse_anno$SYMBOL)
+conv_mouse_de <- mouse_symbol_de %>% rownames_to_column(., var = "MGI.symbol") %>% left_join(., mouse_to_human_genes_ge, by = "MGI.symbol")
+#determine non-NA genes
+non_na_mouse_de <- which(is.na(conv_mouse_de$HGNC.symbol) == FALSE)
+#return only the genes with annotations using indices
+conv_mouse_de <- conv_mouse_de[non_na_mouse_de, ]
+#determine indices for non-duplicated genes
+no_dups_mouse_de <- which(duplicated(conv_mouse_de$HGNC.symbol) == FALSE)
+#return only non-dup genes using indices
+conv_mouse_de <- conv_mouse_de[no_dups_mouse_de, ]
+rownames(conv_mouse_de) <- NULL 
+conv_mouse_de <- conv_mouse_de %>% as.data.frame() %>% column_to_rownames(., var = "HGNC.symbol") 
+conv_mouse_de <- conv_mouse_de[,c(2:17)]
 
 ```
