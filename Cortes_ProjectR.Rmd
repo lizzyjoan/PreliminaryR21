@@ -290,7 +290,7 @@ ggsave("PCA_Method_Mouse_Projected_onto_Human.pdf", projected_PCA)
 
 **ProjectR Clustering Method**  
 There’s 2 methods: cluster2pattern finds correlation of each gene’s expression by mean of cluster to define continuous weights. Then intersector tests significant overlap between 2 clustering objects. For these purposes, I think cluster2pattern is better for finding what we want (differences between clusters rather than overlaps). Requires a clustering object first.
-```{r}
+```{r, message = FALSE}
 #Before making clustering object, need to decide on number of clusters
 #wss <- (nrow(conv_mouse)-1)*sum(apply(conv_mouse,2,var))
 #for (i in 2:15) wss[i] <- sum(kmeans(conv_mouse,
@@ -314,8 +314,13 @@ plot(hclust_fit) # display dendrogram
 library(pvclust)
 fit <- pvclust(conv_mouse, method.hclust="ward",
    method.dist="euclidean")
-plot(fit) # dendogram with p values
+hclust_dendro_sig <- plot(fit) # dendogram with p values
 # add rectangles around groups highly supported by the data
-pvrect(fit, alpha=.95)
+#pvrect(fit, alpha=.95)
+#savePlot(filename = "Mouse_Hclust_Dendrogram.pdf", hclust_dendro_sig)
+
+```
+```{r}
+#mouse_clusters <- cluster2pattern(hclust_fit, NP = 3, Data = conv_mouse)
 
 ```
