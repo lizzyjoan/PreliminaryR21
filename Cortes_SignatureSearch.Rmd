@@ -1,0 +1,94 @@
+---
+title: "Cortes_DrugRepurposing"
+author: "Lizzy Ramsey"
+date: "5/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+BiocManager::install("signatureSearch")
+  library(signatureSearch)
+  library(ggplot2)
+library(ExperimentHub); library(rhdf5)
+library(ensembldb)
+library(EnsDb.Hsapiens.v75)
+library(AnnotationDbi)
+```
+
+## R Markdown
+
+
+
+```{r}
+#reference database
+eh <- ExperimentHub()
+cmap <- eh[["EH3223"]]; cmap_expr <- eh[["EH3224"]]
+```
+Load in data
+```{r}
+#DESeq2 results
+human_deseq2_res <- read.csv("Human_DESeq_Res.csv", header = TRUE, row.names = 1)
+
+
+#LFC non NA genes
+human_LFC <- human_deseq2_res[!is.na(human_deseq2_res$log2FoldChange),]
+#Get rid of specific transcript .X numbers 
+rownames(human_LFC) <- sub("\\..*", "", rownames(human_LFC))
+
+```
+
+Find up and down genes
+```{r}
+#showing up empty for LFC > 2 and p-adj < 0.05, so changed LFC to 1.5
+human_up_df <- human_LFC[human_LFC$log2FoldChange >1.5 & human_LFC$padj <0.05,]
+```
+
+```{r}
+human_up_list <- rownames(human_up_df)
+# Jen used mapIds but it sounds like it could be the same as select(), but mapIds gives error: Error in .processFilterParam(keys, x) : 'filter' has to be an 'AnnotationFilter', a list of 'AnnotationFilter' object, an 'AnnotationFilterList' or a valid filter expression!
+human_up_list <- mapIds(EnsDb.Hsapiens.v75, keys = human_up_list, column="ENTREZID", keytype="GENEID", multiVals="first")
+
+
+#correlation might be better method because the LFC??
+```
+
+
+```{r}
+human_down_df <- human_LFC[human_LFC$log2FoldChange < -1.5 & human_LFC$padj <0.05,]
+```
+
+```{r}
+human_down_list <- rownames(human_down_df)
+```
+
+```{r}
+human_down_list <- mapIds(EnsDb.Hsapiens.v75, keys= human_down_list , column="ENTREZID", keytype="GENEID", multiVals="first")
+
+```
+
+### CMAP  
+(STRAIGHT FROM JEN'S MARKDOWN )Lamb et al. (2006) introduced the gene expression-based search method known as Connectivity Map (CMap) where a GES database is searched with a query GES for similar entries (Lamb et al. 2006). Specifically, the GESS method from Lamb et al. (2006), here termed as CMAP, uses as query the two label sets of the most up- and down-regulated genes from a genome-wide expression experiment, while the reference database is composed of rank transformed expression profiles (e.g. ranks of LFC or z-scores). The actual GESS algorithm is based on a vectorized rank difference calculation. The resulting Connectivity Score expresses to what degree the query up/down gene sets are enriched on the top and bottom of the database entries, respectively. The search results are a list of perturbagens such as drugs that induce similar or opposing GESs as the query. Similar GESs suggest similar physiological effects of the corresponding perturbagens.    
+Function qSig() builds an object to store the query signature, reference database and GESS method used for GESS methods
+
+```{r}
+qsig_cmap_human <- qSig(query = list(upset=as.character(human_up_list), downset=as.character(human_down_list)), 
+                  gess_method="CMAP", refdb= "cmap")
+```
+
+```{r}
+cmap <- gess_cmap(qSig= qsig_cmap_human, chunk_size=5000)
+cmap_res <- result(cmap)[1:50,]
+write.csv2(cmap_res, file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/output/SignatureSearch/210518_cmap_res_human.csv")
+cmap_res
+#JEN : This table contains the search results for each perturbagen (here drugs) in the reference database ranked by their signature similarity to the query. For the CMAP method, the similarity metrics are raw_score and scaled_score. The raw score represents the bi-directional enrichment score (Kolmogorov-Smirnov statistic) for a given up/down query signature. Under the scaled_score column, the raw_score has been scaled to values from 1 to -1 by dividing positive scores and negative scores with the maximum positive score and the absolute value of the minimum negative score, respectively. The remaining columns in the search result table contain the following information. pert: name of perturbagen (e.g. drug) in the reference database; cell: acronym of cell type; type: perturbation type, e.g. compound treatment is trt_cp; trend: up or down when reference signature is positively or negatively connected with the query signature, respectively; N_upset or N_downset: number of genes in the query up or down sets, respectively; t_gn_sym: gene symbols of the corresponding drug targets.
+```
+Visualize GESS Results
+```{r}
+#why temzolomide? can I change this?
+drugs_top15 <- c(unique(cmap_res$pert)[1:15], "temzolomide")
+gess_res_vis(cmap_res, drugs = drugs_top15, col = "scaled_score")
+
+```
+
+
