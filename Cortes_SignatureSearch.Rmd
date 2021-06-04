@@ -37,7 +37,6 @@ Load in data
 #DESeq2 results
 human_deseq2_res <- read.csv("210518_Human_DESeq_Res.csv", header = TRUE, row.names = 1)
 
-
 #LFC non NA genes
 human_LFC <- human_deseq2_res[!is.na(human_deseq2_res$log2FoldChange),]
 #Get rid of specific transcript .X numbers 
@@ -57,7 +56,7 @@ human_up_list <- rownames(human_up_df)
 human_up_list <- mapIds(EnsDb.Hsapiens.v75, keys = human_up_list, column="ENTREZID", keytype="GENEID", multiVals="first")
 
 
-#correlation might be better method because the LFC??
+#correlation might be better method because the LFC?
 ```
 
 
@@ -205,6 +204,7 @@ dsea_res_lincs <- dsea_hyperG(drugs = drugs_lincs_topdown, type = "KEGG",
 result(dsea_res_lincs)
 #0 rows
 ```
+
 ```{r}
 drugs_lincs_topup <- unique(lincs_res_up$pert)[1:20]
 gess_res_vis(lincs_res, drugs = drugs_lincs_topup , col = "NCS")
@@ -229,10 +229,11 @@ result(dsea_lincs_down)
 The Bioconductor gCMAP (Sandmann et al. 2014) package provides access to a related but not identical implementation of the original CMAP algorithm proposed by Lamb et al. (2006). It uses as query a rank transformed GEP and the reference database is composed of the labels of up and down regulated DEG sets. This is the opposite situation of the CMAP method, where the query is composed of the labels of up and down regulated DEGs and the database contains rank transformed GESs.  
 First, create matrix with zscores  
 ```{r}
-DESEQ2_sig_df <- human_LFC[abs(as.numeric(human_LFC$log2FoldChange)) >2 & human_LFC$padj <0.05,]
+#changed LFC > 2 to 1.5, too few genes otherwise
+DESEQ2_sig_df <- human_LFC[abs(as.numeric(human_LFC$log2FoldChange)) >1.5 & human_LFC$padj <0.05,]
 LOG <- as.numeric(DESEQ2_sig_df$log2FoldChange)
 
-IDS <- mapIds(EnsDb.Hsapiens.v75, keys= rownames(human_LFC) , column="ENTREZID", keytype="GENEID", multiVals="first")
+IDS <- mapIds(EnsDb.Hsapiens.v75, keys= rownames(DESEQ2_sig_df) , column="ENTREZID", keytype="GENEID", multiVals="first")
 
 ```
 
@@ -244,31 +245,239 @@ IDS_V2 <-IDS[!is.na(IDS)]
 duplicated_genes <- unique(IDS_V2[duplicated(IDS_V2)])
 names(LOG_V2) <- IDS_V2
 
-fix<- c()
-for (i in 1:length(duplicated_genes)){
-  group <- LOG_V2[names(LOG_V2) == duplicated_genes[i]]
- top <- group[group == max(abs(group))]
- fix <- c(fix, top)
-}
-fix
+#fix<- c()
+#for (i in 1:length(duplicated_genes)){
+#  group <- LOG_V2[names(LOG_V2) == duplicated_genes[i]]
+# top <- group[group == max(abs(group))]
+# fix <- c(fix, top)
+#}
+#fix
 ```
 
 ```{r}
-LOG_V3 <- LOG_V2[!names(LOG_V2) %in% duplicated_genes]
-LOG_V4 <- c(LOG_V3, fix)
-LOG_V5 <- as.data.frame(LOG_V4)
-rownames(LOG_V5) <- names(LOG_V4)
+#LOG_V3 <- LOG_V2[!names(LOG_V2) %in% duplicated_genes]
+#LOG_V4 <- c(LOG_V3, fix)
+#LOG_V5 <- as.data.frame(LOG_V4)
+#rownames(LOG_V5) <- names(LOG_V4)
+
+#duplicated_genes is zero 
+LOG_V5 <- as.data.frame(LOG_V2)
+rownames(LOG_V5) <- names(LOG_V2)
 ```
 
 ```{r}
-#qsig_gcmap <- qSig(query =as.matrix(LOG_V5), gess_method = "gCMAP", refdb = "lincs")
+qsig_gcmap <- qSig(query = as.matrix(LOG_V5), gess_method = "gCMAP", refdb = "lincs")
+gcmap <- gess_gcmap(qsig_gcmap, higher = 1, lower = -1)
+result(gcmap)
+```
+The columns in the corresponding search result table, that are specific to the gCMAP method, contain the following information. effect: scaled bi-directional enrichment score corresponding to the scaled_score under the CMAP result; nSet: number of genes in the reference gene sets after applying the higher and lower cutoff; nFound: number of genes in the reference gene sets that are present in the query signature; signed: whether the gene sets in the reference database have signs, e.g. representing up and down regulated genes when computing scores.
+
+```{r}
+gcmap_res <- result(gcmap)
+write.csv2(gcmap_res, file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_gcmap_res_human.csv")
+drugs_top20_gcmap <- c(unique(gcmap_res$pert)[1:20])
+gess_res_vis(gcmap_res, drugs = drugs_top20_gcmap, col = "effect")
 
 ```
 
-**Spearman Correlation**  
+```{r}
+gcmap_res_down <- gcmap_res[gcmap_res$trend == "down",]
+down_drug_gcmap <- unique(gcmap_res_down$pert)[1:20]
+gcmap_res_up <- gcmap_res[gcmap_res$trend == "up",]
+up_drug_gcmap <- unique(gcmap_res_up$pert)[1:20]
+drugs_top20 <- c(unique(gcmap_res_down$pert)[1:20], "temozolomide")
+gess_res_vis(gcmap_res, drugs = drugs_top20_gcmap, col = "effect")
+```
+**TSEA for gCMAP**
+```{r}
+dup_rct_res_gcmap_down <- tsea_dup_hyperG(drugs = drugs_top20_gcmap[1:20], type = "KEGG",
+                               pvalueCutoff=0.5, qvalueCutoff = 0.5)
+result(dup_rct_res_gcmap_down)
+write.csv2(result(dup_rct_res_gcmap_down), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_gcmap_tsea_down_human.csv")
+```
+
+```{r}
+drugs_top20_gcmap_up <- c(unique(gcmap_res_up$pert)[1:20])
+gess_res_vis(gcmap_res, drugs = drugs_top20_gcmap_up, col = "effect")
+
+```
+```{r}
+dup_rct_res_gcmap_up <- tsea_dup_hyperG(drugs = drugs_top20_gcmap_up[1:20], type = "KEGG",
+                               pvalueCutoff=0.5, qvalueCutoff = 0.5)
+result(dup_rct_res_gcmap_up)
+write.csv2(result(dup_rct_res_gcmap_up), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_gcmap_tsea_up_human.csv")
+
+```
+
+```{r}
+hyperG_k_res_gcmap_up <- dsea_hyperG(drugs = drugs_top20_gcmap_up[1:20], type = "KEGG", 
+                            pvalueCutoff = 0.05 , qvalueCutoff = 0.05, 
+                            minGSSize = 2, maxGSSize = 2000)
+result(hyperG_k_res_gcmap_up)
+#0 results
+```
+
+```{r}
+dtnetplot(drugs = drugs(hyperG_k_res_gcmap_up), set = "hsa04921", 
+          desc="Oxytocin signaling pathway")
+```
+**Fisher Method**  
+Fisher's exact test (Graham J. G. Upton 1992) can also be used to search a GS-DB (gene set database) for entries that are similar to a GS-Q (gene set query). In this case both the query and the database are composed of gene label sets, such as DEG sets.  
+```{r}
+qsig_fisher <- qSig(query = as.matrix(LOG_V5), gess_method = "Fisher", refdb = "lincs")
+
+```
+
+```{r}
+fisher <- gess_fisher(qSig = qsig_fisher, higher = 1, lower = -1)
+result(fisher)[1:50,]
+```
+The columns in the result table specific to the Fisher method include the following information. pval: p-value of the Fisher's exact test; padj: p-value adjusted for multiple hypothesis testing using R's p.adjust function with the Benjamini & Hochberg (BH) method; effect: z-score based on the standard normal distribution; LOR: log odds ratio.
+```{r}
+write.csv2(result(fisher), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_fisher_res_human.csv")
+fisher_res <- result(fisher)
+drugs_top20_fisher <- c(unique(fisher_res$pert)[1:20])
+gess_res_vis(fisher_res, drugs = drugs_top20_fisher, col = "effect")
+```
+
+```{r}
+fisher_res_over <- fisher_res[fisher_res$trend=="over", ]
+up_drug_fisher <- unique(fisher_res_over$pert)[1:20]
+fisher_res_under <- fisher_res[fisher_res$trend=="under", ]
+down_drug_fisher <- unique(fisher_res_under$pert)[1:20]
+drugs_top20_fisher_over <- c(unique(fisher_res_over$pert)[1:20])
+gess_res_vis(fisher_res, drugs = drugs_top20_fisher_over, col = "effect")
+
+```
+
+```{r}
+dup_rct_res_fisher_over <- tsea_dup_hyperG(drugs = drugs_top20_fisher_over[1:20], type = "KEGG",
+                               pvalueCutoff=0.5, qvalueCutoff = 0.5)
+result(dup_rct_res_fisher_over)
+write.csv2(result(dup_rct_res_fisher_over), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_fisher_tsea_over_human.csv")
+```
+
+
+```{r}
+hyperG_k_res_fisher_over <- dsea_hyperG(drugs = drugs_top20_fisher_over[1:20], type = "KEGG", 
+                            pvalueCutoff = 0.05 , qvalueCutoff = 0.05, 
+                            minGSSize = 2, maxGSSize = 2000)
+result(hyperG_k_res_fisher_over)
+```
+
+
+```{r}
+drugs_top20_fisher_under <- c(unique(fisher_res_under$pert)[1:20])
+gess_res_vis(fisher_res, drugs = drugs_top20_fisher_under, col = "effect")
+```
+
+```{r}
+dup_rct_res_fisher_under <- tsea_dup_hyperG(drugs = drugs_top20_fisher_under[1:20], type = "KEGG",
+                               pvalueCutoff=0.5, qvalueCutoff = 0.5)
+result(dup_rct_res_fisher_under)
+
+```
+
 ```{r}
 qsig_sp <- qSig(query = as.matrix(LOG_V5), gess_method = "Cor", refdb = "lincs")
+sp <- gess_cor(qSig=qsig_sp, method="spearman")
+result(sp)[1:50,]
+```
+
+```{r}
+sp_res <- result(sp)
+write.csv2(result(sp), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_spearman_res_human.csv")
+drugs_top20_spearman <- c(unique(sp_res$pert)[1:20])
+gess_res_vis(sp_res, drugs = drugs_top20_spearman, col = "cor_score")
+```
+
+```{r}
+sp_res_up <- sp_res[sp_res$trend == "up",]
+up_drug_sp <- unique(sp_res_up$pert)[1:20]
+sp_res_down <- sp_res[sp_res$trend == "down",]
+down_drug_sp <- unique(sp_res_down$pert)[1:20]
+drugs_top20_sp_down <- c(unique(sp_res_down$pert)[1:20])
+gess_res_vis(sp_res, drugs = drugs_top20_sp_down, col = "cor_score")
+```
+
+```{r}
+dup_rct_res_sp_down <- tsea_dup_hyperG(drugs = drugs_top20_sp_down[1:20], type = "KEGG",
+                               pvalueCutoff=0.5, qvalueCutoff = 0.5)
+result(dup_rct_res_sp_down)
+```
+
+```{r}
+hyperG_k_res_sp_down<- dsea_hyperG(drugs = drugs_top20_sp_down[1:20], type = "KEGG", 
+                            pvalueCutoff = 0.05 , qvalueCutoff = 0.05, 
+                            minGSSize = 2, maxGSSize = 2000)
+result(hyperG_k_res_sp_down)
+```
+
+```{r}
+drugs_top20_sp_up <- c(unique(sp_res_up$pert)[1:20])
+gess_res_vis(sp_res, drugs = drugs_top20_sp_up, col = "cor_score")
+```
+
+```{r}
+dup_rct_res_sp_up <- tsea_dup_hyperG(drugs = drugs_top20[1:20], type = "KEGG",
+                               pvalueCutoff=0.5, qvalueCutoff = 0.5)
+result(dup_rct_res_sp_up)
+
+write.csv2(result(dup_rct_res_sp_up), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_spearman_res_human.csv")
+```
+
+```{r}
+hyperG_k_res_sp_up <- dsea_hyperG(drugs = drugs_top20_sp_up[1:20], type = "KEGG", 
+                            pvalueCutoff = 0.05 , qvalueCutoff = 0.05, 
+                            minGSSize = 2, maxGSSize = 2000)
+result(hyperG_k_res_sp_up)
 
 ```
 
+```{r}
+intersect(up_drug_cmap, up_drug_lincs)
+```
+```{r}
+intersect(up_drug_cmap, up_drug_gcmap)
+```
+```{r}
+intersect(up_drug_cmap, up_drug_sp)
+```
 
+```{r}
+intersect(up_drug_cmap, up_drug_fisher)
+```
+
+```{r}
+intersect(up_drug_lincs, up_drug_gcmap)
+```
+
+```{r}
+intersect(up_drug_lincs, up_drug_sp)
+```
+
+```{r}
+intersect(up_drug_lincs, up_drug_fisher)
+```
+
+```{r}
+intersect(up_drug_gcmap, up_drug_sp)
+```
+
+```{r}
+intersect(up_drug_gcmap, up_drug_fisher)
+```
+
+```{r}
+intersect(up_drug_sp, up_drug_fisher)
+```
+
+## END
+Location of final scripts:
+Locally /Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/  
+  
+Operations complete: 210604  
+  
+  **Versions**
+  sessionInfo()
+  
