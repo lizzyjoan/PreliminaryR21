@@ -22,7 +22,8 @@ library(tidyr)
 library(ggalluvial)
 library(ggrepel)
 library(gprofiler2)
-
+library(EnsDb.Hsapiens.v86)
+library(viridis)
 ```
 
 ### Purpose
@@ -238,7 +239,7 @@ How many patterns? Might need to finish FEA to figure out.
 #parameters for GoGAPS
 params <- new("CogapsParams")
 params <- setParam(params, "seed", 1000)
-params <- setParam(params, "nPatterns", 15)
+params <- setParam(params, "nPatterns", 12)
 
 ```
 
@@ -250,17 +251,46 @@ params <- setParam(params, "nPatterns", 15)
 
 ```{r}
 #CoGAPS to find patterns in the data
-AP_mouse <- CoGAPS(conv_mouse, params, nIterations = 15000)
+#set parameters for number of patterns
+params <- setParam(params, "nPatterns", pattern[i])
+
+AP_mouse <- CoGAPS(conv_mouse, params, nIterations = 5000)
 chisq_matrix[9,9] <- getMeanChiSq(AP_mouse)
-chisq_matrix
-#best is 5000 iterations, 11 patterns?
 
-chisq_df <- as.data.frame(chisq_matrix)
-ggplot(as.data.frame(chisq_matrix)) + aes(x = 1000, y = c(7:15)) + geom_line()
-scatter.smooth(chisq_matrix)
-plot(chisq_df, 1000, type = "b")
 
-plot(AP_mouse)
+#for loop
+#patterns 7:15 , iterations 1000, 3000, 5000, 6000, 7000, 8000, 10000, 12000, 15000
+n_patterns <- c(7:15)
+n_iterations <- c(1000, 3000, 5000, 6000, 7000, 8000, 10000, 12000, 15000)
+
+get_chisq <- function(patterns, iterations) {
+  chisq_matrix <- matrix(data = 0, nrow = 9, ncol = 9)
+  params <- new("CogapsParams")
+  params <- setParam(params, "seed", 1000)
+  
+  for (i in 1:length(patterns)) {
+    params <- setParam(params, "nPatterns", patterns[i])
+    for (j in 1:length(iterations)){
+      AP <- CoGAPS(conv_mouse, params, nIterations = iterations[j])
+      chi_sq <- getMeanChiSq(AP)
+      chisq_matrix[i,j] <- chi_sq
+  }
+}
+  return(chisq_matrix)
+}
+
+get_chisq(n_patterns, n_iterations)
+
+write.csv2(chisq_matrix, file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/mouse_chisq_matrix.csv")
+#chisq_matrix
+#best is 5000 iterations, 11 patterns
+
+#chisq_df <- as.data.frame(chisq_matrix)
+#ggplot(as.data.frame(chisq_matrix)) + aes(x = 1000, y = c(7:15)) + geom_line()
+#scatter.smooth(chisq_matrix)
+#plot(chisq_df, 1000, type = "b")
+
+#plot(AP_mouse)
 
 
 ```
@@ -309,6 +339,20 @@ boxplot_factors_pre <- boxplot(pre_exercise, las = 2, ylab = "Sample Factors", m
 stripchart(pre_exercise, vertical = TRUE, method = "jitter", add = TRUE, pch = 20, col = 'black')
 ```
 
+Violin Plots
+```{r}
+mouse_long_pre <- pre_exercise %>% gather(key = "Patterns", value = "Val") %>% ggplot( aes(x = Patterns, y = Val, fill = Patterns)) + geom_violin()
+mouse_long_pre
+```
+
+
+```{r}
+mouse_long_post <- post_exercise %>% gather(key = "Patterns", value = "Val") %>% ggplot( aes(x = Patterns, y = Val, fill = Patterns)) + geom_violin()
+mouse_long_post
+```
+
+
+
 ```{r}
 mouse_featureLoadings <- AP_mouse@featureLoadings %>% as.data.frame() 
 boxplot_loadings <- boxplot(mouse_featureLoadings, xlab = "NMF Patterns", ylab = "Amplitude", las = 2, main = "Mouse Feature Loadings")
@@ -332,9 +376,9 @@ human_samplefactors <- cbind(human_samplefactors, Exercise = human_info$PrePost)
 #mouse_boxplot <- ggplot(mouse_samplefactors, aes(x = Exercise, y = Pattern_2)) + geom_boxplot()
 #mouse_boxplot
 
-baseboxplot <- 
-boxplot(mouse_samplefactors_split, xlab = "NMF Patterns", ylab = "Sample Weights", las = 2, main = "Sample Factors", subset = mouse_samplefactors_split$ExerciseFactors == 2, col = "red")
-boxplot(mouse_samplefactors_split, las = 2, subset = mouse_samplefactors_split$ExerciseFactors == 1, col = "blue", add = TRUE)
+#baseboxplot <- 
+#boxplot(mouse_samplefactors_split, xlab = "NMF Patterns", ylab = "Sample Weights", las = 2, main = "Sample Factors", subset = mouse_samplefactors_split$ExerciseFactors == 2, col = "red")
+#boxplot(mouse_samplefactors_split, las = 2, subset = mouse_samplefactors_split$ExerciseFactors == 1, col = "blue", add = TRUE)
 #did not work
 
 #try splitting into two matrices, pre and post, and then use add to "add boxplot to current plot"
@@ -359,12 +403,13 @@ Visualizing NMF object
 #heatmap
 #Error in plot.new() : figure margins too large
 #trying par(mar) to change margins
-NMF_mouse <-heatmap.2(as.matrix(AP_mouse),col=bluered, trace='none',
-                 distfun=function(c) as.dist(1-cor(t(c))) ,
-                 cexCol=1,cexRow=.6,scale = "row", main = "Mouse Data: nPatterns 14, nIterations 5000", labRow = rownames(conv_mouse), xlab = "Patterns",
-                 hclustfun=function(x) hclust(x, method="average"))
-pdf("NewMouse_NMF_nPat14_nIt5000.pdf", NMF_mouse)
-NMF_mouse
+
+#NMF_mouse <-heatmap.2(as.matrix(AP_mouse),col=bluered, trace='none',
+#                 distfun=function(c) as.dist(1-cor(t(c))) ,
+#                 cexCol=1,cexRow=.6,scale = "row", main = "Mouse Data: nPatterns 14, nIterations #5000", labRow = rownames(conv_mouse), xlab = "Patterns",
+#                 hclustfun=function(x) hclust(x, method="average"))
+#pdf("NewMouse_NMF_nPat14_nIt5000.pdf", NMF_mouse)
+#NMF_mouse
 ```
 
 
@@ -524,8 +569,6 @@ mouseToHumanTop50 <- as.matrix(mouseToHumanTop50)
 
 
 ```{r}
-
-
 cluster_projection <- projectR(mouseToHumanTop50, loadings = mouse_clusters, full = TRUE, dataNames = rownames(mouseToHumanTop50))
 #combining projection with metadata and preparing for PCA
 cluster_projection_t <- t(cluster_projection[[1]])
@@ -587,28 +630,98 @@ GO (attempt)
 ```{r}
 #Look at GO first
 #first, use annotation dbi with AP_mouse@featureLoadings
-mouse_fea
-amp_anno <- AnnotationDbi::select(org.Hs.eg.db, keys = rownames(mouse_featureLoadings), columns = c("GO"), keytype = "SYMBOL")
+#mouse_fea
+#amp_anno <- AnnotationDbi::select(org.Hs.eg.db, keys = rownames(mouse_featureLoadings), columns = c("GO"), keytype = "SYMBOL")
   #mouse_featureLoadings
 #returns multiple ontology terms for each gene... Not sure how to decide which to keep 
 
 ```
 
-PathfindR  
+Mouse ggprofiler https://biit.cs.ut.ee/gprofiler/page/r
+```{r}
+#input needs to be a dataframe with genes and p values, so each pattern will need its own dataframe
+#sample_factors has already been extracted from AP_human, need to do the same with the stdev
+mouse_feature <- as.data.frame(AP_mouse@featureLoadings)
+mouse_feature_stdev <- as.data.frame(AP_mouse@loadingStdDev)
+pattern3_mouse <- dplyr::select(mouse_feature, Pattern_3) %>% cbind(., StdDev = mouse_feature_stdev$Pattern_3)
+head(pattern3_mouse)
+pattern1_mouse <- dplyr::select(mouse_feature, Pattern_1) %>% cbind(., StdDev = mouse_feature_stdev$Pattern_1)
+head(pattern2_mouse)
+
+#want to look at just the significant genes of pattern 5
+pattern3_sig_mouse <- pattern3_mouse[pattern3_mouse$StdDev < 0.05,]
+pattern1_sig_mouse <- pattern1_mouse[pattern1_mouse$StdDev < 0.05,]
+#narrow down significant genes list by selecting the highest weighted genes
+#pattern3_sig_mouse <- slice_max(pattern3_sig_mouse, order_by = Pattern_3, n = 150)
+#pattern2_sig_mouse <- slice_max(pattern2_sig_mouse, order_by = Pattern_2, n = 150)
+
+#named list so genes names are retained and not changed to query_1 from gost()
+#pattern3_sig_mouse <- as.list(pattern3_sig_mouse, all.names = TRUE)
+pattern3_mouse_names <- rownames(pattern3_sig_mouse) %>% as.list()
+names(pattern3_mouse_names) <- rownames(pattern3_sig_mouse)
+pattern1_mouse_names <- rownames(pattern1_sig_mouse) %>% as.list()
+names(pattern1_mouse_names) <- rownames(pattern1_sig_mouse)
+```
+
+
+```{r}
+#look into exclude_iea and correction_methods
+gost_res_mouse <- gost(query = pattern6_mouse_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+                user_threshold = 0.05, correction_method = "g_SCS", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "", sources = c("GO:CC", "GO:BP", "GO:MF"), as_short_link = FALSE)
+head(gost_res_mouse$result)
+gost_res_mouse$result
+
+#mouse_pattern5_rkc <- gost_res_mouse$result
+mouse_pattern6_GO <- gost_res_mouse$result
+
+gost_mouse_pattern3_top150gene_fea <- gost_res_mouse$result
+#conversion to make this dataframe writable for csv
+gost_mouse_pattern6_top150gene_fea <- apply(gost_mouse_pattern6_top150gene_fea,2,as.character)
+write.csv2(gost_mouse_pattern6_top150gene_fea, file =  "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/gost_mouse_pattern6_top150gene_fea.csv")
+
+#most significant pathways
+pattern3_sig_mouse_bp <- slice_min(gost_res_mouse$result, order_by = p_value, n = 20)
+pattern3_sig_mouse_bp
+```
+
+```{r}
+#GO:0005737 , GO:0005515 , GO:0071840
+gost_plot_mouse <- gostplot(gost_res_mouse, capped = TRUE, interactive = FALSE)
+gost_plot_mouse
+```
+
+
+```{r}
+#top GO terms 
+gost_mouse_publish <- publish_gostplot(gost_plot_mouse, highlight_terms = c("GO:0005737", "GO:0005515", "GO:0071840"), filename = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/210614_gost_mouse_publishplot.pdf" ) 
+
+gost_mouse_publish
+```
+
+Human ggprofiler https://biit.cs.ut.ee/gprofiler/page/r
 ```{r}
 #input needs to be a dataframe with genes and p values, so each pattern will need its own dataframe
 #sample_factors has already been extracted from AP_human, need to do the same with the stdev
 human_feature <- as.data.frame(AP_human@featureLoadings)
 human_feature_stdev <- as.data.frame(AP_human@loadingStdDev)
-pattern6_human <- dplyr::select(human_feature, Pattern_6) %>% cbind(., StdDev = human_feature_stdev$Pattern_6)
-pattern6_human
+pattern5_human <- dplyr::select(human_feature, Pattern_5) %>% cbind(., StdDev = human_feature_stdev$Pattern_5)
+head(pattern5_human)
+pattern1_human <- dplyr::select(human_feature, Pattern_1) %>% cbind(., StdDev = human_feature_stdev$Pattern_1)
+head(pattern1_human)
 
-NMF_projection <- human_NMF$projection
-NMF_pval <- human_NMF$pval
-NMF_pattern6 <- cbind(NMF_projection)
+#want to look at just the significant genes of pattern 5
+pattern5_sig <- pattern5_human[pattern5_human$StdDev < 0.1,]
+pattern1_sig <- pattern1_human[pattern1_human$StdDev < 0.1,]
 
-#look into exclude_iea
-gost_res <- gost(query = row.names(human_feature), organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+pattern5_human_names <- rownames(pattern5_sig) %>% as.list()
+names(pattern5_human_names) <- rownames(pattern5_sig)
+```
+
+```{r}
+#look into exclude_iea and correction_methods
+gost_res <- gost(query = rownames(pattern3_), organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
                 user_threshold = 0.05, correction_method = "g_SCS", 
                 domain_scope = "annotated", custom_bg = NULL, 
                 numeric_ns = "", sources = NULL, as_short_link = FALSE)
@@ -621,29 +734,66 @@ gost_plot2
 ```
 
 
-Alluvial Plot  
+Alluvial Plot - Mouse  
+Looking at all gost results and just KEGG/Reactome/Corum
 ```{r}
-#Alluvial Plot
-#need a character vector of annotations for alluvial
-mouse_GO_list <- mouse_symbol_GO$ONTOLOGY
-human_GO_t <- t(human_symbol_data_GO)
-alluvial <- alluvialMat(projection = human_NMF, annotations = human_info$BMI, plot = TRUE)
-alluvial
+#combine pattern FEA data frames
+#need to add an identifier for pattern number for each dataframe
+gost_mouse_pattern4_top150gene_fea <- cbind(gost_mouse_pattern4_top150gene_fea, c(rep("pattern_4")))
+gost_mouse_pattern5_top150gene_fea <- cbind(gost_mouse_pattern5_top150gene_fea, c(rep("pattern_5")))
+gost_mouse_pattern6_top150gene_fea <- cbind(gost_mouse_pattern6_top150gene_fea, c(rep("pattern_6")))
+mouse_patterns_4thru6 <- rbind(gost_mouse_pattern4_top150gene_fea, gost_mouse_pattern5_top150gene_fea, gost_mouse_pattern6_top150gene_fea)
+mouse_patterns_4thru6 <- as.data.frame(mouse_patterns_4thru6) 
+names(mouse_patterns_4thru6)[names(mouse_patterns_4thru6) == "V15"] <- "Pattern" 
 
-ggalluvial <- ggplot(data = mouse_DE_top50,
-       aes(axis1 = CON_pre4, axis2 = CON_post4, y = X) +
-  scale_x_discrete(limits = c("Sample", "PrePost Exercise"), expand = c(.2, .05)) +
-  xlab(" ") +
-  geom_alluvium(aes(fill = BMI)) +
-  geom_stratum() +
-  geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
-  theme_minimal() +
-  ggtitle(" "))
+#combining gost results for patterns 3:6 with just sources KEGG/Reactome/Corum
+mouse_pattern3_rkc <- cbind(mouse_pattern3_rkc, pattern = c(rep("pattern_3")))
+mouse_pattern4_rkc <- cbind(mouse_pattern4_rkc, pattern = c(rep("pattern_4")))
+mouse_pattern5_rkc <- cbind(mouse_pattern5_rkc, pattern = c(rep("pattern_5")))
+mouse_pattern6_rkc <- cbind(mouse_pattern6_rkc, pattern = c(rep("pattern_6")))
+mouse_rkc_3thru6 <- rbind(mouse_pattern3_rkc, mouse_pattern4_rkc, mouse_pattern5_rkc, mouse_pattern6_rkc)
 
+ggalluvial <- ggplot(mouse_rkc_3thru6,
+       aes(axis1 = pattern, axis2 = term_name, y = term_size)) +
+  geom_alluvium(aes(fill = term_name), width = 1/12) +
+  geom_stratum(width = 1/12, fill = "black", color = "grey") +
+  geom_label(stat = "stratum", aes(label = after_stat(stratum))) +
+  scale_x_discrete(limits = c("Pattern", "Pathway"), expand = c(.05, .05)) +
+  scale_fill_brewer(type = "qual", palette = "Set3") +
+  ggtitle("Mouse Patterns to Pathways")
+ggalluvial
+```
+
+
+```{r}
+ggsave("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/210616_gprofiler_mouse_patterns3thru6_FEA_sources_alluvial.pdf", ggalluvial)
+
+```
+
+Alluvial Plot - Mouse  
+Looking just at gost profiler GO results
+```{r}
+#combining gost results for patterns 3:6 with just GO sources
+mouse_pattern3_GO <- cbind(mouse_pattern3_GO, pattern = c(rep("pattern_3")))
+mouse_pattern4_GO <- cbind(mouse_pattern4_GO, pattern = c(rep("pattern_4")))
+mouse_pattern5_GO <- cbind(mouse_pattern5_GO, pattern = c(rep("pattern_5")))
+mouse_pattern6_GO <- cbind(mouse_pattern6_GO, pattern = c(rep("pattern_6")))
+mouse_GO_3thru6 <- rbind(mouse_pattern3_GO, mouse_pattern4_GO, mouse_pattern5_GO, mouse_pattern6_GO)
+
+ggalluvial_GO <- ggplot(mouse_GO_3thru6,
+       aes(axis1 = pattern, axis2 = source, y = term_size)) +
+  geom_alluvium(aes(fill = source), width = 1/12) +
+  geom_stratum(width = 1/12, fill = "black", color = "grey") +
+  geom_label(stat = "stratum", aes(label = after_stat(stratum))) +
+  scale_x_discrete(limits = c("Pattern", "Pathway"), expand = c(.05, .05)) +
+  scale_fill_brewer(type = "qual", palette = "Set1") +
+  ggtitle("Mouse Patterns to Pathways")
+ggalluvial_GO
 
 ```
 
 
+```{r}
+ggsave("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/210616_gprofiler_mouse_patterns3thru6_FEA_GOsources_alluvial.pdf", ggalluvial_GO)
 
-
-
+```
