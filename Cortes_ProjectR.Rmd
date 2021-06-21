@@ -240,7 +240,7 @@ How many patterns? Might need to finish FEA to figure out.
 #parameters for GoGAPS
 params <- new("CogapsParams")
 params <- setParam(params, "seed", 1000)
-params <- setParam(params, "nPatterns", 11)
+params <- setParam(params, "nPatterns", 9)
 
 ```
 
@@ -256,7 +256,7 @@ getMeanChiSq(AP_mouse)
 ```{r eval=FALSE, include=FALSE}
 #FOR LOOP
 #patterns 7:15 , iterations 1000, 3000, 5000, 6000, 7000, 8000, 10000, 12000, 15000
-n_patterns <- c(7:15)
+n_patterns <- c(7:20)
 n_iterations <- c(1000, 3000, 5000, 6000, 7000, 8000, 10000, 12000, 15000)
 
 get_chisq <- function(patterns, iterations) {
@@ -267,15 +267,16 @@ get_chisq <- function(patterns, iterations) {
   for (i in 1:length(patterns)) {
     params <- setParam(params, "nPatterns", patterns[i])
     for (j in 1:length(iterations)){
-      AP <- CoGAPS(conv_mouse, params, nIterations = iterations[j])
+      AP <- CoGAPS(human_symbol_data, params, nIterations = iterations[j])
       chi_sq <- getMeanChiSq(AP)
       chisq_matrix[i,j] <- chi_sq
   }
 }
   return(chisq_matrix)
+  write.csv2(chisq_matrix, file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/Human_chisq_matrix.csv")
 }
 
-#get_chisq(n_patterns, n_iterations)
+get_chisq(n_patterns, n_iterations)
 
 #write.csv2(chisq_matrix, file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/mouse_chisq_matrix.csv")
 #chisq_matrix
@@ -292,7 +293,7 @@ get_chisq <- function(patterns, iterations) {
 
 ```{r}
 #CoGAPS to find patterns in the data
-AP_human <- CoGAPS(human_symbol_data, params, nIterations = 6000)
+AP_human <- CoGAPS(human_symbol_data, params, nIterations = 5000)
 getMeanChiSq(AP_human)
 plot(AP_human)
 ```
@@ -418,7 +419,7 @@ top100_var_mouse_featloadings_names <- names(sort(var_mouse_featloadings, decrea
 head(top100_var_mouse_featloadings_names)
 ```
 ```{r}
-#to look ath highest weighted genes, going to select genes with highest averages across patterns
+#to look at the highest weighted genes, going to select genes with highest averages across patterns
 avg_mouse_featloadings <- apply(mouse_featloadings, 1, mean)
 
 top75_mouse_featloadings_names <- names(sort(avg_mouse_featloadings, decreasing = TRUE))[1:75]
@@ -434,6 +435,7 @@ top75_mouse_featloadings <- rownames_to_column(top75_mouse_featloadings, var = "
 dim(top75_mouse_featloadings)
 head(top75_mouse_featloadings)
 ```
+Mouse Heatmap  
 https://jcoliver.github.io/learn-r/009-expression-heatmaps.html
 ```{r}
 mouse_featloadings_long <- pivot_longer(data = top75_mouse_featloadings, 
@@ -441,10 +443,81 @@ mouse_featloadings_long <- pivot_longer(data = top75_mouse_featloadings,
                          names_to = "pattern", 
                          values_to = "feat_weight")
 head(mouse_featloadings_long)
+mouse_featloadings_long$log.expression <- log(mouse_featloadings_long$feat_weight)
+```
+
+Mouse Gene/Feature NMF Matrix Heatmap in ggplot
+```{r}
+mouse_featloadings_heatmap <- ggplot(mouse_featloadings_long, mapping = aes(x = pattern, y = genes, fill = log.expression)) + geom_tile() + xlab(label = "Patterns") + ylab(label = "Genes") + theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
+mouse_featloadings_heatmap
 ```
 
 ```{r}
-ggplot(mouse_featloadings_long, mapping = aes(x = pattern, y = genes, fill = feat_weight)) + geom_tile() 
+ggsave("210618_NMF_mouse_featloadings_heatmap.pdf", mouse_featloadings_heatmap)
+```
+
+Mouse Gene/Feature NMF Matrix Heatmap in ComplexHeatmap
+```{r}
+library(devtools)
+library(ComplexHeatmap)
+install_github("jokergoo/ComplexHeatmap")
+Heatmap(mouse_featloadings_long)
+
+#cogaps - heatmap of original data clustered by pattern markers statistic
+AP_mouse_res <- results()
+plotPatternMarkers(AP_mouse, as.matrix(conv_mouse), patternPalette = "PiYG", samplePalette = "BrBG")
+
+```
+
+**Human NMF Heatmap**
+```{r}
+##ggplot Heatmap
+human_featloadings <- AP_human@featureLoadings
+
+#estimate variance for each row 
+var_human_featloadings <- apply(human_featloadings, 1, var)
+#top 100 most variable genes
+top100_var_human_featloadings_names <- names(sort(var_human_featloadings, decreasing = TRUE))[1:100]
+head(top100_var_human_featloadings_names)
+```
+```{r}
+#to look at the highest weighted genes, going to select genes with highest averages across patterns
+avg_human_featloadings <- apply(human_featloadings, 1, mean)
+
+top75_human_featloadings_names <- names(sort(avg_human_featloadings, decreasing = TRUE))[1:75]
+head(top75_human_featloadings_names)
+```
+
+Human
+```{r}
+#data wrangling
+top75_human_featloadings <- human_featloadings[top75_human_featloadings_names,]
+top75_human_featloadings <- as.data.frame(top75_human_featloadings)
+top75_human_featloadings <- rownames_to_column(top75_human_featloadings, var = "genes")
+dim(top75_human_featloadings)
+head(top75_human_featloadings)
+```
+Human  
+https://jcoliver.github.io/learn-r/009-expression-heatmaps.html
+```{r}
+human_featloadings_long <- pivot_longer(data = top75_human_featloadings, 
+                         cols = -genes,
+                         names_to = "pattern", 
+                         values_to = "feat_weight")
+head(human_featloadings_long)
+human_featloadings_long$log.expression <- log(human_featloadings_long$feat_weight)
+```
+
+human Gene/Feature NMF Matrix Heatmap in ggplot
+```{r}
+human_featloadings_heatmap <- ggplot(human_featloadings_long, mapping = aes(x = pattern, y = genes, fill = log.expression)) + 
+  geom_tile() + scale_colour_viridis_c(option = "plasma") + 
+  xlab(label = "Patterns") + ylab(label = "Genes") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
+human_featloadings_heatmap
+```
+```{r}
+ggsave("210621_NMF_human_featloadings_heatmap.pdf", human_featloadings_heatmap)
 ```
 
 **NMF Projection**  

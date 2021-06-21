@@ -23,9 +23,12 @@ Dataset:
 GitHub:  
 System which operations were done on: MacBook Pro (16-inch, 2019),  Processor 2.4 GHz 8-Core Intel Core i9, Memory 64 GB 2667 MHz DDR4, Graphics AMD Radeon Pro 5300M 4 GB Intel UHD Graphics 630 1536 MB  
 
-**Contents**
+**Contents**  
 - CMAP Method  
 - LINCS Method  
+- gCMAP Method  
+- Fisher Exact Test Method  
+- Spearman Correlation Method  
 
 ```{r}
 #reference database
@@ -74,21 +77,23 @@ human_down_list <- mapIds(EnsDb.Hsapiens.v75, keys= human_down_list , column="EN
 ```
 
 ### CMAP  
-(STRAIGHT FROM JEN'S MARKDOWN )Lamb et al. (2006) introduced the gene expression-based search method known as Connectivity Map (CMap) where a GES database is searched with a query GES for similar entries (Lamb et al. 2006). Specifically, the GESS method from Lamb et al. (2006), here termed as CMAP, uses as query the two label sets of the most up- and down-regulated genes from a genome-wide expression experiment, while the reference database is composed of rank transformed expression profiles (e.g. ranks of LFC or z-scores). The actual GESS algorithm is based on a vectorized rank difference calculation. The resulting Connectivity Score expresses to what degree the query up/down gene sets are enriched on the top and bottom of the database entries, respectively. The search results are a list of perturbagens such as drugs that induce similar or opposing GESs as the query. Similar GESs suggest similar physiological effects of the corresponding perturbagens.    
+Lamb et al. (2006) introduced the gene expression-based search method known as Connectivity Map (CMap) where a GES database is searched with a query GES for similar entries (Lamb et al. 2006). Specifically, the GESS method from Lamb et al. (2006), here termed as CMAP, uses as query the two label sets of the most up- and down-regulated genes from a genome-wide expression experiment, while the reference database is composed of rank transformed expression profiles (e.g. ranks of LFC or z-scores). The actual GESS algorithm is based on a vectorized rank difference calculation. The resulting Connectivity Score expresses to what degree the query up/down gene sets are enriched on the top and bottom of the database entries, respectively. The search results are a list of perturbagens such as drugs that induce similar or opposing GESs as the query. Similar GESs suggest similar physiological effects of the corresponding perturbagens.    
 Function qSig() builds an object to store the query signature, reference database and GESS method used for GESS methods
 
 ```{r}
 qsig_cmap_human <- qSig(query = list(upset=as.character(human_up_list), downset=as.character(human_down_list)), 
-                  gess_method="CMAP", refdb= "cmap")
+                  gess_method="CMAP", refdb= "lincs")
 ```
 
 ```{r}
 cmap <- gess_cmap(qSig= qsig_cmap_human, chunk_size=5000)
 cmap_res <- result(cmap)[1:50,]
-write.csv2(cmap_res, file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/output/SignatureSearch/210518_cmap_res_human_revDESeq2contrasts.csv")
+write.csv2(cmap_res, file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/output/SignatureSearch/210607_cmap_res_human_revDESeq2contrasts.csv")
 cmap_res
-#JEN : This table contains the search results for each perturbagen (here drugs) in the reference database ranked by their signature similarity to the query. For the CMAP method, the similarity metrics are raw_score and scaled_score. The raw score represents the bi-directional enrichment score (Kolmogorov-Smirnov statistic) for a given up/down query signature. Under the scaled_score column, the raw_score has been scaled to values from 1 to -1 by dividing positive scores and negative scores with the maximum positive score and the absolute value of the minimum negative score, respectively. The remaining columns in the search result table contain the following information. pert: name of perturbagen (e.g. drug) in the reference database; cell: acronym of cell type; type: perturbation type, e.g. compound treatment is trt_cp; trend: up or down when reference signature is positively or negatively connected with the query signature, respectively; N_upset or N_downset: number of genes in the query up or down sets, respectively; t_gn_sym: gene symbols of the corresponding drug targets.
+
 ```
+This table contains the search results for each perturbagen (here drugs) in the reference database ranked by their signature similarity to the query. For the CMAP method, the similarity metrics are raw_score and scaled_score. The raw score represents the bi-directional enrichment score (Kolmogorov-Smirnov statistic) for a given up/down query signature. Under the scaled_score column, the raw_score has been scaled to values from 1 to -1 by dividing positive scores and negative scores with the maximum positive score and the absolute value of the minimum negative score, respectively. The remaining columns in the search result table contain the following information. pert: name of perturbagen (e.g. drug) in the reference database; cell: acronym of cell type; type: perturbation type, e.g. compound treatment is trt_cp; trend: up or down when reference signature is positively or negatively connected with the query signature, respectively; N_upset or N_downset: number of genes in the query up or down sets, respectively; t_gn_sym: gene symbols of the corresponding drug targets.  
+  
 Visualize GESS Results
 ```{r}
 #drugs_top15 <- unique(cmap_res$pert)[1:15]
@@ -96,8 +101,8 @@ drugs_top30 <- unique(result(cmap)$pert)[1:30]
 gess_res_vis(cmap_res, drugs = drugs_top30, col = "scaled_score")
 
 ```
-**TSEA**  
-The following introduces how to perform TSEA on drug-based GESS results using as functional annotation systems GO, KEGG and Reactome pathways. ...  The specialized enrichment algorithms include Duplication Adjusted Hypergeometric Test (dup_hyperG), Modified Gene Set Enrichment Analysis (mGSEA) and MeanAbs (mabs).  
+**CMAP TSEA**  
+The following introduces how to perform TSEA (target set enrichment analysis) on drug-based GESS results using as functional annotation systems GO, KEGG and Reactome pathways. ...  The specialized enrichment algorithms include Duplication Adjusted Hypergeometric Test (dup_hyperG), Modified Gene Set Enrichment Analysis (mGSEA) and MeanAbs (mabs).  
  Internally, the latter converts the drug set to a target set, and then computes for it enrichment scores for each MF GO term based on the hypergeometric distribution. The enrichment results are stored in a feaResult object. It contains the organism information of the annotation system, and the ontology type of the GO annotation system. If the annotation system is KEGG, the latter will be “KEGG”. The object also stores the input drugs used for the enrichment test, as well as their target information.
 
 ```{r}
@@ -121,7 +126,7 @@ dtnetplot(drugs = drugs(tsea_kegg_cmap_human), set = "hsa00140",
           desc="Steroid hormone biosynthesis")
 #u).
 ```
-**DSEA**  
+**CMAP DSEA**  
 Instead of translating ranked lists of drugs into target sets, as for TSEA, the functional annotation categories of the targets can be assigned to the drugs directly to perform Drug Set Enrichment Analysis (DSEA) instead. Since the
 drug lists from GESS results are usually unique, this strategy overcomes the duplication problem of the TSEA approach. This way classical enrichment methods, such as GSEA or tests based on the hypergeometric distribution, can be readily applied without major modifications to the underlying statistical methods. As explained above, TSEA and DSEA performed with the same enrichment statistics are not expected to generate identical results. Rather they often complement each other’s strengths and weaknesses.
 
@@ -143,26 +148,26 @@ dtnetplot(drugs = drugs(dsea_res_cmap), set = "hsa00140",
 
 ```
 
-**LINCS Method**  
+##LINCS Method  
 Subramanian et al. (2017) introduced a more complex GESS algorithm, here referred to as LINCS. While related to CMAP, there are several important differences among the two approaches. First, LINCS weights the query genes based on the corresponding differential expression scores of the GEPs in the reference database (e.g. LFC or z-scores). Thus, the reference database used by LINCS needs to store the actual score values rather than their ranks. Another relevant difference is that the LINCS algorithm uses a bi-directional weighted Kolmogorov-Smirnov enrichment statistic (ES) as similarity metric.  
 ```{r}
 qsig_lincs_human <- qSig(query =list(upset=as.character(human_up_list), downset=as.character(human_down_list)), 
                    gess_method="LINCS", refdb="lincs")
 
 ```
-The similarity scores stored in the LINCS result table are summarized here. WTCS: Weighted Connectivity Score; WTCS_Pval: nominal p-value of WTCS; WTCS_FDR: false discovery rate of WTCS_Pval; NCS: normalized connectivity score; NCSct: NCS summarized across cell types; Tau: enrichment score standardized for a given database. The latter is only included in the result table if tau=TRUE in a gess_lincs function call. The example given is run with tau=FALSE, because the tau values are only meaningful when the complete LINCS database is used which is not the case for the toy database.  
+The similarity scores stored in the LINCS result table are summarized here. WTCS: Weighted Connectivity Score; WTCS_Pval: nominal p-value of WTCS; WTCS_FDR: false discovery rate of WTCS_Pval; NCS: normalized connectivity score; NCSct: NCS summarized across cell types; Tau: enrichment score standardized for a given database. The latter is only included in the result table if tau=TRUE in a gess_lincs function call. The example given is run with tau=FALSE, because the tau values are only meaningful when the complete LINCS database is used which is not the case for the toy database. 
   
-The following provides a more detailed description of the similarity scores computed by the LINCS method. Additional details are available in the Supplementary Material Section of the Subramanian et al. (2017) paper.
+The following provides a more detailed description of the similarity scores computed by the LINCS method. Additional details are available in the Supplementary Material Section of the Subramanian et al. (2017) paper.  
   
-WTCS: The Weighted Connectivity Score is a bi-directional ES for an up/down query set. If the ES values of an up set and a down set are of different signs, then WTCS is (ESup-ESdown)/2, otherwise, it is 0. WTCS values range from -1 to 1. They are positive or negative for signatures that are positively or inversely related, respectively, and close to zero for signatures that are unrelated.
+WTCS: The Weighted Connectivity Score is a bi-directional ES for an up/down query set. If the ES values of an up set and a down set are of different signs, then WTCS is (ESup-ESdown)/2, otherwise, it is 0. WTCS values range from -1 to 1. They are positive or negative for signatures that are positively or inversely related, respectively, and close to zero for signatures that are unrelated.  
   
-WTCS_Pval and WTCS_FDR: The nominal p-value of the WTCS and the corresponding false discovery rate (FDR) are computed by comparing the WTCS against a null distribution of WTCS values obtained from a large number of random queries (e.g. 1000).
+WTCS_Pval and WTCS_FDR: The nominal p-value of the WTCS and the corresponding false discovery rate (FDR) are computed by comparing the WTCS against a null distribution of WTCS values obtained from a large number of random queries (e.g. 1000).  
   
-NCS: To make connectivity scores comparable across cell types and perturbation types, the scores are normalized. Given a vector of WTCS values w resulting from a query, the values are normalized within each cell line c and perturbagen type t to obtain the Normalized Connectivity Score (NCS) by dividing the WTCS value by the signed mean of the WTCS values within the subset of signatures in the reference database corresponding to c and t.
+NCS: To make connectivity scores comparable across cell types and perturbation types, the scores are normalized. Given a vector of WTCS values w resulting from a query, the values are normalized within each cell line c and perturbagen type t to obtain the Normalized Connectivity Score (NCS) by dividing the WTCS value by the signed mean of the WTCS values within the subset of signatures in the reference database corresponding to c and t.  
   
-NCSct: The NCS is summarized across cell types as follows. Given a vector of NCS values for perturbagen p, relative to query q, across all cell lines c in which p was profiled, a cell-summarized connectivity score is obtained using a maximum quantile statistic. It compares the 67 and 33 quantiles of NCSp,c and retains whichever is of higher absolute magnitude.
+NCSct: The NCS is summarized across cell types as follows. Given a vector of NCS values for perturbagen p, relative to query q, across all cell lines c in which p was profiled, a cell-summarized connectivity score is obtained using a maximum quantile statistic. It compares the 67 and 33 quantiles of NCSp,c and retains whichever is of higher absolute magnitude.  
   
-Tau: The standardized score Tau compares an observed NCS to a large set of NCS values that have been pre-computed for a specific reference database. The query results are scored with Tau as a standardized measure ranging from 100 to -100. A Tau of 90 indicates that only 10% of reference perturbations exhibit stronger connectivity to the query. This way one can make more meaningful comparisons across query results.
+Tau: The standardized score Tau compares an observed NCS to a large set of NCS values that have been pre-computed for a specific reference database. The query results are scored with Tau as a standardized measure ranging from 100 to -100. A Tau of 90 indicates that only 10% of reference perturbations exhibit stronger connectivity to the query. This way one can make more meaningful comparisons across query results.  
   
 ```{r}
 lincs_human <- gess_lincs(qsig_lincs_human, sortby="NCS", tau=TRUE)
@@ -187,7 +192,7 @@ gess_res_vis(lincs_res, drugs = drugs_lincs_topdown , col = "NCS")
 
 ```
 
-
+**TSEA**  
 ```{r}
 tsea_lincs_down <- tsea_dup_hyperG(drugs = drugs_lincs_topdown[1:20], type = "KEGG",
                                pvalueCutoff=0.5, qvalueCutoff = 0.5)
@@ -196,7 +201,7 @@ write.csv2(result(tsea_lincs_down), file =  "/Users/eramsey/Desktop/R21_210302/P
 
 ```
 
-
+**DSEA**  
 ```{r}
 dsea_res_lincs <- dsea_hyperG(drugs = drugs_lincs_topdown, type = "KEGG", 
                             pvalueCutoff = 0.05 , qvalueCutoff = 0.05, 
@@ -219,13 +224,13 @@ write.csv2(result(tsea_lincs_up), file = "/Users/eramsey/Desktop/R21_210302/Prel
 
 
 ```{r}
-dsea_lincs_down <- dsea_hyperG(drugs = drugs_lincs_topdown, type = "KEGG", 
+dsea_lincs_up <- dsea_hyperG(drugs = drugs_lincs_topup, type = "KEGG", 
                             pvalueCutoff = 0.05 , qvalueCutoff = 0.05, 
                             minGSSize = 2, maxGSSize = 2000)
-result(dsea_lincs_down)
+result(dsea_lincs_up)
 
 ```
-**GCMAP**  
+##GCMAP  
 The Bioconductor gCMAP (Sandmann et al. 2014) package provides access to a related but not identical implementation of the original CMAP algorithm proposed by Lamb et al. (2006). It uses as query a rank transformed GEP and the reference database is composed of the labels of up and down regulated DEG sets. This is the opposite situation of the CMAP method, where the query is composed of the labels of up and down regulated DEGs and the database contains rank transformed GESs.  
 First, create matrix with zscores  
 ```{r}
@@ -292,8 +297,8 @@ gess_res_vis(gcmap_res, drugs = drugs_top20_gcmap, col = "effect")
 ```{r}
 dup_rct_res_gcmap_down <- tsea_dup_hyperG(drugs = drugs_top20_gcmap[1:20], type = "KEGG",
                                pvalueCutoff=0.5, qvalueCutoff = 0.5)
-result(dup_rct_res_gcmap_down)
 write.csv2(result(dup_rct_res_gcmap_down), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_gcmap_tsea_down_human.csv")
+result(dup_rct_res_gcmap_down)
 ```
 
 ```{r}
@@ -301,14 +306,16 @@ drugs_top20_gcmap_up <- c(unique(gcmap_res_up$pert)[1:20])
 gess_res_vis(gcmap_res, drugs = drugs_top20_gcmap_up, col = "effect")
 
 ```
+**DSEA for gCMAP**  
 ```{r}
 dup_rct_res_gcmap_up <- tsea_dup_hyperG(drugs = drugs_top20_gcmap_up[1:20], type = "KEGG",
                                pvalueCutoff=0.5, qvalueCutoff = 0.5)
-result(dup_rct_res_gcmap_up)
-write.csv2(result(dup_rct_res_gcmap_up), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_gcmap_tsea_up_human.csv")
 
+write.csv2(result(dup_rct_res_gcmap_up), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_gcmap_tsea_up_human.csv")
+result(dup_rct_res_gcmap_up)
 ```
 
+**DSEA** 
 ```{r}
 hyperG_k_res_gcmap_up <- dsea_hyperG(drugs = drugs_top20_gcmap_up[1:20], type = "KEGG", 
                             pvalueCutoff = 0.05 , qvalueCutoff = 0.05, 
@@ -321,7 +328,7 @@ result(hyperG_k_res_gcmap_up)
 dtnetplot(drugs = drugs(hyperG_k_res_gcmap_up), set = "hsa04921", 
           desc="Oxytocin signaling pathway")
 ```
-**Fisher Method**  
+##Fisher Method  
 Fisher's exact test (Graham J. G. Upton 1992) can also be used to search a GS-DB (gene set database) for entries that are similar to a GS-Q (gene set query). In this case both the query and the database are composed of gene label sets, such as DEG sets.  
 ```{r}
 qsig_fisher <- qSig(query = as.matrix(LOG_V5), gess_method = "Fisher", refdb = "lincs")
@@ -349,12 +356,13 @@ drugs_top20_fisher_over <- c(unique(fisher_res_over$pert)[1:20])
 gess_res_vis(fisher_res, drugs = drugs_top20_fisher_over, col = "effect")
 
 ```
-
+**Fisher TSEA**  
 ```{r}
 dup_rct_res_fisher_over <- tsea_dup_hyperG(drugs = drugs_top20_fisher_over[1:20], type = "KEGG",
                                pvalueCutoff=0.5, qvalueCutoff = 0.5)
-result(dup_rct_res_fisher_over)
 write.csv2(result(dup_rct_res_fisher_over), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_fisher_tsea_over_human.csv")
+result(dup_rct_res_fisher_over)
+
 ```
 
 
@@ -377,6 +385,7 @@ dup_rct_res_fisher_under <- tsea_dup_hyperG(drugs = drugs_top20_fisher_under[1:2
 result(dup_rct_res_fisher_under)
 
 ```
+##Spearman Correlation Method  
 
 ```{r}
 qsig_sp <- qSig(query = as.matrix(LOG_V5), gess_method = "Cor", refdb = "lincs")
@@ -399,13 +408,13 @@ down_drug_sp <- unique(sp_res_down$pert)[1:20]
 drugs_top20_sp_down <- c(unique(sp_res_down$pert)[1:20])
 gess_res_vis(sp_res, drugs = drugs_top20_sp_down, col = "cor_score")
 ```
-
+**Spearman TSEA**  
 ```{r}
 dup_rct_res_sp_down <- tsea_dup_hyperG(drugs = drugs_top20_sp_down[1:20], type = "KEGG",
                                pvalueCutoff=0.5, qvalueCutoff = 0.5)
 result(dup_rct_res_sp_down)
 ```
-
+**Spearman DSEA**  
 ```{r}
 hyperG_k_res_sp_down<- dsea_hyperG(drugs = drugs_top20_sp_down[1:20], type = "KEGG", 
                             pvalueCutoff = 0.05 , qvalueCutoff = 0.05, 
@@ -421,9 +430,9 @@ gess_res_vis(sp_res, drugs = drugs_top20_sp_up, col = "cor_score")
 ```{r}
 dup_rct_res_sp_up <- tsea_dup_hyperG(drugs = drugs_top20[1:20], type = "KEGG",
                                pvalueCutoff=0.5, qvalueCutoff = 0.5)
-result(dup_rct_res_sp_up)
-
 write.csv2(result(dup_rct_res_sp_up), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_spearman_res_human.csv")
+spearman_tsea_up <- result(dup_rct_res_sp_up)
+spearman_tsea_up
 ```
 
 ```{r}
@@ -433,7 +442,7 @@ hyperG_k_res_sp_up <- dsea_hyperG(drugs = drugs_top20_sp_up[1:20], type = "KEGG"
 result(hyperG_k_res_sp_up)
 
 ```
-
+**Looking for Drug Resuls in Two Methods**
 ```{r}
 intersect(up_drug_cmap, up_drug_lincs)
 ```
@@ -472,12 +481,48 @@ intersect(up_drug_gcmap, up_drug_fisher)
 intersect(up_drug_sp, up_drug_fisher)
 ```
 
+**Comparing FEA Results**
+```{r}
+table_list = list("CMAP" = result(tsea_kegg_cmap_human), "LINCS" = result(tsea_lincs_up), "gCMAP" = result(dup_rct_res_gcmap_up), "Fisher" = result(dup_rct_res_fisher_over), "Spearman" = result(dup_rct_res_sp_up))
+comp_fea_res(table_list, rank_stat = "pvalue", Nshow = 20)
+
+```
+
+```{r}
+dsea_table_list <- list("CMAP" = result(dsea_res_cmap), "gCMAP" = result(dup_rct_res_gcmap_up) )
+#no DSEA results for Fisher, Spearman, or LINCS methods
+
+comp_fea_res(dsea_table_list, rank_stat = "pvalue", Nshow = 20)
+```
+
+Alluvial Plot  
+```{r}
+#Alluvial Plot
+#need a character vector of annotations for alluvial
+spearman_KEGG_list <- spearman_tsea_up$Description
+human_GO_t <- t(human_symbol_data_GO)
+
+
+ggalluvial <- ggplot(data = spearman_tsea_up,
+       aes(y = Count, axis1 = Description, axis2 = CON_post4) +
+  scale_x_discrete(limits = c("Sample", "PrePost Exercise"), expand = c(.2, .05)) +
+  xlab(" ") +
+  geom_alluvium(aes(fill = BMI)) +
+  geom_stratum() +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+  theme_minimal() +
+  ggtitle(" "))
+
+
+```
+
+
 ## END
 Location of final scripts:
 Locally /Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/  
   
 Operations complete: 210604  
   
-  **Versions**
+  **Versions**  
   sessionInfo()
   
