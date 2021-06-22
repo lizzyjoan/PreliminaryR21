@@ -233,7 +233,7 @@ conv_mouse <- conv_mouse[,c(2:17)]
 
 ```
 
-**ProjectR NMF Using CoGAPS for Mouse**  
+**NMF Using CoGAPS for Mouse**  
 How many patterns? Might need to finish FEA to figure out. 
 ```{r}
 #MOUSE NMF
@@ -289,7 +289,7 @@ get_chisq(n_patterns, n_iterations)
 
 #plot(AP_mouse)
 ```
-**ProjectR NMF Using CoGAPS for Human**  
+**NMF Using CoGAPS for Human**  
 
 ```{r}
 #CoGAPS to find patterns in the data
@@ -361,37 +361,41 @@ human_samplefactors <- AP_human@sampleFactors %>% as.data.frame()
 #%>% rownames_to_column(., var = "Sample")
 human_samplefactors <- cbind(human_samplefactors, Exercise = human_info$PrePost)
 
-#exercisefactors_human <- as.numeric(factor(human_samplefactors$Exercise)) 
-#human_samplefactors_split <- cbind(human_samplefactors, ExerciseFactors = exercisefactors)
-#human_samplefactors_split <- subset(human_samplefactors_split, select = -Exercise)
-
-#mouse_samplefactors_split <- split(mouse_samplefactors, mouse_samplefactors$ExerciseFactors)
-#mouse_samplefactors <- as.data.frame(mouse_samplefactors)
-
-#Struggling with ggplot
-#mouse_boxplot <- ggplot(mouse_samplefactors, aes(x = Exercise, y = Pattern_2)) + geom_boxplot()
-#mouse_boxplot
-
-#baseboxplot <- 
-#boxplot(mouse_samplefactors_split, xlab = "NMF Patterns", ylab = "Sample Weights", las = 2, main = "Sample Factors", subset = mouse_samplefactors_split$ExerciseFactors == 2, col = "red")
-#boxplot(mouse_samplefactors_split, las = 2, subset = mouse_samplefactors_split$ExerciseFactors == 1, col = "blue", add = TRUE)
-#did not work
-
-#try splitting into two matrices, pre and post, and then use add to "add boxplot to current plot"
-
-#try grouping pre/post exercise into two different matrices, and then combine them into a boxplot
-pre_exercise_human <- filter(human_samplefactors, Exercise == "Pre")
+#split into two matrices, pre and post, and then use add to "add boxplot to current plot"
+#group pre/post exercise into two different matrices, and then combine them into a boxplot
+pre_exercise_human <- dplyr::filter(human_samplefactors, Exercise == "Pre")
 pre_exercise_human <- subset(pre_exercise_human, select = -Exercise)
-post_exercise_human <- filter(human_samplefactors, Exercise == "Post")
+post_exercise_human <- dplyr::filter(human_samplefactors, Exercise == "Post")
 post_exercise_human <- subset(post_exercise_human, select = -Exercise)
 #base r boxplot
 boxplot_factors_post_human <- boxplot(post_exercise_human, las = 2, ylab = "Sample Factors", main = "Human Post Exercise Patterns", col = "powderblue")
-#add data points
-stripchart(post_exercise_human, vertical = TRUE, method = "jitter", add = TRUE, pch = 20, col = 'black')
+stripchart(post_exercise_human, vertical = TRUE, method = "jitter", add = TRUE, pch = 20, col = 'black') #add data points
 boxplot_factors_pre_human <- boxplot(pre_exercise_human, las = 2, ylab = "Sample Factors", main = "Human Pre Exercise Patterns", col = "plum2")
 stripchart(pre_exercise_human, vertical = TRUE, method = "jitter", add = TRUE, pch = 20, col = 'black')
 ```
  
+ggplot Boxplot for Patterns in Human
+```{r}
+human_sampleFactors <- AP_human@sampleFactors
+
+human_sampleFactors_long <- human_sampleFactors %>% as.data.frame() %>% rownames_to_column(., var = "Sample") %>% pivot_longer( cols = -Sample, names_to = "Patterns", values_to = "Factors")  %>% mutate(Exercise = ifelse(grepl("Pre", Sample, ignore.case = TRUE), "Pre", "Post")) %>% unite( col = "Exercise_Pattern", Patterns, Exercise, sep = "_", remove = FALSE)
+
+human_NMF_boxplot <- ggplot(human_sampleFactors_long, aes(x = Exercise_Pattern, y = Factors)) +
+  geom_boxplot(color = "gray60") +
+  geom_point(aes(color = Exercise)) +
+  geom_jitter(size = 2, alpha = 0.25, width = 0.2) +
+  scale_colour_viridis_d() +
+  labs(x = "Pre and Post Exercise Patterns", y = "Factors") + 
+  theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 45, vjust = 0.5)) +
+    labs(title = "Human NMF Pre/Post Exercise Patterns")
+human_NMF_boxplot
+```
+
+```{r}
+ggsave("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/210621_human_NMF_prepost_pattern_boxplot.pdf", human_NMF_boxplot)
+
+```
+
  
 **Heatmap of Mouse NMF**  
 Visualizing NMF object
@@ -452,12 +456,12 @@ mouse_featloadings_heatmap <- ggplot(mouse_featloadings_long, mapping = aes(x = 
 mouse_featloadings_heatmap
 ```
 
-```{r}
+```{r eval=FALSE}
 ggsave("210618_NMF_mouse_featloadings_heatmap.pdf", mouse_featloadings_heatmap)
 ```
 
 Mouse Gene/Feature NMF Matrix Heatmap in ComplexHeatmap
-```{r}
+```{r eval=FALSE, include=FALSE}
 library(devtools)
 library(ComplexHeatmap)
 install_github("jokergoo/ComplexHeatmap")
@@ -505,17 +509,21 @@ human_featloadings_long <- pivot_longer(data = top75_human_featloadings,
                          names_to = "pattern", 
                          values_to = "feat_weight")
 head(human_featloadings_long)
-human_featloadings_long$log.expression <- log(human_featloadings_long$feat_weight)
+human_featloadings_long$log.weight <- log(human_featloadings_long$feat_weight)
 ```
 
 human Gene/Feature NMF Matrix Heatmap in ggplot
 ```{r}
-human_featloadings_heatmap <- ggplot(human_featloadings_long, mapping = aes(x = pattern, y = genes, fill = log.expression)) + 
-  geom_tile() + scale_colour_viridis_c(option = "plasma") + 
-  xlab(label = "Patterns") + ylab(label = "Genes") + 
-  theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
+human_featloadings_heatmap <- ggplot(human_featloadings_long, mapping = aes(x = pattern, y = genes, fill = log.weight)) + 
+  geom_tile() +
+  labs(title = "Human NMF Feature Weights") +
+  xlab(label = "Patterns") + 
+  ylab(label = "Top Weighted Genes") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5), axis.text.y = element_text(size = 5)) + 
+  scale_fill_viridis(option = "plasma")
 human_featloadings_heatmap
 ```
+
 ```{r}
 ggsave("210621_NMF_human_featloadings_heatmap.pdf", human_featloadings_heatmap)
 ```
@@ -534,12 +542,52 @@ human_NMF <- projectR(human_data,loadings=AP_mouse, full=TRUE,
 projection_NMF <- human_NMF$projection %>% t() %>% cbind(., human_info)
 pval_NMF <- human_NMF$pval
 #plot pca
-projection_plot <- ggplot(projection_NMF, aes(x = Pattern_3, y = Pattern_5, colour = PrePost)) + geom_point() + ggtitle("Mouse Data NMF Patterns Projected onto Human Data")
+projection_plot <- ggplot(projection_NMF, aes(x = Pattern_3, y = Pattern_2, colour = PrePost)) + geom_point() + ggtitle("Mouse Data NMF Patterns Projected onto Human Data")
 projection_plot
 ggsave("NMF_Mouse_Projected_to_Human_14pat5000it.pdf", projection_plot)
 
+```
+Scatterplot Projected Pattern Comparison
+```{r}
+projection_colors <- scale_colour_manual(values = c("red","green","blue","black"),
+guide = guide_legend(title="Lineage"))
+
+projection_plot <- ggplot(projection_NMF, aes(x = Pattern_1, y = Pattern_2, colour = PrePost)) +
+  geom_point(size=5) + 
+  projection_colors + 
+  theme(legend.position = c(0,0), legend.justification = c(0,0), panel.background = element_rect(fill = "white"), legend.direction = "horizontal")
+projection_plot
 
 ```
+Boxplot to Compare Pre/Post Projected Patterns
+```{r}
+NMF_projection_long <- projection_NMF %>% rownames_to_column(., var = "Sample") %>% pivot_longer(starts_with("Pattern_"), names_to = "Patterns", values_to = "Factors") %>% unite( col = "Exercise_Pattern", Patterns, PrePost, sep = "_", remove = FALSE)
+
+
+projection_NMF_boxplot <- ggplot(NMF_projection_long, aes(x = Exercise_Pattern, y = Factors)) +
+  geom_boxplot(color = "gray60") +
+  geom_point(aes(color = PrePost)) +
+  geom_jitter(size = 2, alpha = 0.25, width = 0.2) +
+  scale_colour_viridis_d() +
+  labs(x = "Projected Pre and Post Exercise Patterns", y = "Factors") + 
+  theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 45, vjust = 0.5)) +
+    labs(title = "Projected Mouse NMF Pre/Post Exercise Patterns onto Human Data")
+projection_NMF_boxplot
+```
+
+```{r}
+projection_NMF_scatterplot <- ggplot(NMF_projection_long, aes(x = Patterns, y = Factors)) +
+  geom_point(aes(color = PrePost)) +
+  geom_jitter(size = 2, alpha = 0.5, width = 0.2) +
+  scale_colour_viridis_d() +
+  labs(x = "Projected Pre and Post Exercise Patterns", y = "Factors") + 
+  theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 45, vjust = 0.5)) +
+    labs(title = "Projected Mouse NMF Pre/Post Exercise Patterns onto Human Data")
+projection_NMF_scatterplot
+
+```
+
+
 
 **PC Projection**  
 Another method to projections. Principal components are found for mouse and human data. Mouse PC's are used for loadings and projected onto human data.  
