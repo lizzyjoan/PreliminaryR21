@@ -470,7 +470,7 @@ human_featloadings <- AP_human@featureLoadings
 #estimate variance for each row 
 var_human_featloadings <- apply(human_featloadings, 1, var)
 #top 100 most variable genes
-top100_var_human_featloadings_names <- names(sort(var_human_featloadings, decreasing = TRUE))[1:100]
+top100_var_human_featloadings_names <- names(sort(var_human_featloadings, decreasing = TRUE))[1:100] 
 head(top100_var_human_featloadings_names)
 ```
 
