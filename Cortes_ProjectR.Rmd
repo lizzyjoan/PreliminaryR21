@@ -375,14 +375,14 @@ human_NMF_boxplot <- ggplot(human_sampleFactors_long, aes(x = Exercise_Pattern, 
   geom_point(aes(color = Exercise)) +
   geom_jitter(size = 2, alpha = 0.25, width = 0.2) +
   scale_colour_viridis_d() +
-  labs(x = "Pre and Post Exercise Patterns", y = "Factors") + 
-  theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 45, vjust = 0.5)) +
+  labs(x = "Pre and Post Exercise Patterns", y = "Sample Weights") + 
+  theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
     labs(title = "Human NMF Pre/Post Exercise Patterns")
 human_NMF_boxplot
 ```
 
 ```{r eval=FALSE, include=FALSE}
-ggsave("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/210621_human_NMF_prepost_pattern_boxplot.pdf", human_NMF_boxplot)
+ggsave("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/210628_human_NMF_prepost_pattern_boxplot_verticlelabels.pdf", human_NMF_boxplot)
 
 ```
 
@@ -470,8 +470,10 @@ human_featloadings <- AP_human@featureLoadings
 #estimate variance for each row 
 var_human_featloadings <- apply(human_featloadings, 1, var)
 #top 100 most variable genes
-top100_var_human_featloadings_names <- names(sort(var_human_featloadings, decreasing = TRUE))[1:100] 
-head(top100_var_human_featloadings_names)
+top20_var_human_featloadings_names <- names(sort(var_human_featloadings, decreasing = TRUE))[1:20] 
+head(top20_var_human_featloadings_names)
+
+top20_var_human_featloadings_matrix <- human_featloadings[top20_var_human_featloadings_names,]
 ```
 
 Human - highest average weighted genes
@@ -479,29 +481,31 @@ Human - highest average weighted genes
 #to look at the highest weighted genes, going to select genes with highest averages across patterns
 avg_human_featloadings <- apply(human_featloadings, 1, mean)
 
-top75_human_featloadings_names <- names(sort(avg_human_featloadings, decreasing = TRUE))[1:75]
-head(top75_human_featloadings_names)
+top20_human_featloadings_names <- names(sort(avg_human_featloadings, decreasing = TRUE))[1:20]
+head(top20_human_featloadings_names)
 ```
 
 Human - data wrangling
 ```{r}
 #data wrangling
-top75_human_featloadings <- human_featloadings[top75_human_featloadings_names,]
-top75_human_featloadings <- as.data.frame(top75_human_featloadings)
-top75_human_featloadings <- rownames_to_column(top75_human_featloadings, var = "genes")
-dim(top75_human_featloadings)
-head(top75_human_featloadings)
+top20_human_featloadings_matrix <- human_featloadings[top20_human_featloadings_names,]
+top20_human_featloadings <- as.data.frame(top20_human_featloadings_matrix)
+top20_human_featloadings <- rownames_to_column(top20_human_featloadings, var = "genes")
+dim(top20_human_featloadings)
+head(top20_human_featloadings)
 ```
 Human  
 https://jcoliver.github.io/learn-r/009-expression-heatmaps.html
 ```{r}
-human_featloadings_long <- pivot_longer(data = top75_human_featloadings, 
+human_featloadings_long <- pivot_longer(data = top20_human_featloadings, 
                          cols = -genes,
                          names_to = "pattern", 
                          values_to = "feat_weight")
 head(human_featloadings_long)
 human_featloadings_long$log.weight <- log(human_featloadings_long$feat_weight)
+head(human_featloadings_long)
 ```
+
 
 human Gene/Feature NMF Matrix Heatmap in ggplot
 ```{r}
@@ -513,6 +517,31 @@ human_featloadings_heatmap <- ggplot(human_featloadings_long, mapping = aes(x = 
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5), axis.text.y = element_text(size = 5)) + 
   scale_fill_viridis(option = "plasma")
 human_featloadings_heatmap
+```
+Clustering human data for heatmap
+```{r}
+#using wide-form of data to cluster
+#top20_human_matrix <- as.numeric(top20_human_featloadings)
+par(mar=c(7,4,4,2)+0.1) 
+human_nmf_heatmap2 <-  heatmap.2(top20_human_featloadings_matrix,col=viridis, trace='none', margin=c(3,5),
+distfun=function(c) as.dist(1-cor(t(c))) ,
+cexCol=1,cexRow=.5,scale = "row",
+hclustfun=function(x) hclust(x, method="average"), main = "Top 20 Human NMF Avg Gene Weights"
+)
+# Error in plot.new() : figure margins too large
+
+human_nmf_heatmap2 <-  heatmap.2(top20_var_human_featloadings_matrix,col=viridis, trace='none', margin=c(3,5),
+distfun=function(c) as.dist(1-cor(t(c))) ,
+cexCol=1,cexRow=.5,scale = "row",
+hclustfun=function(x) hclust(x, method="average"), main = "Top 20 Human NMF Varied Gene Weights"
+)
+
+
+```
+
+```{r}
+
+
 ```
 
 ```{r eval=FALSE, include=FALSE}
@@ -533,7 +562,7 @@ human_meta <- column_to_rownames(human_info_test, var = "SRR")
 projection_NMF <- human_NMF$projection %>% t() %>% cbind(., human_info)
 pval_NMF <- human_NMF$pval
 #plot pca
-projection_plot <- ggplot(projection_NMF, aes(x = Pattern_3, y = Pattern_2, colour = PrePost)) + geom_point() + ggtitle("Mouse Data NMF Patterns Projected onto Human Data")
+projection_plot <- ggplot(projection_NMF, aes(x = Pattern_5, y = Pattern_6, colour = PrePost)) + geom_point() + ggtitle("Mouse Data NMF Patterns Projected onto Human Data")
 projection_plot
 ggsave("NMF_Mouse_Projected_to_Human_14pat5000it.pdf", projection_plot)
 
@@ -564,6 +593,24 @@ projection_NMF_boxplot <- ggplot(NMF_projection_long, aes(x = Exercise_Pattern, 
   theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 45, vjust = 0.5)) +
     labs(title = "Projected Mouse NMF Pre/Post Exercise Patterns onto Human Data")
 projection_NMF_boxplot
+```
+```{r eval=FALSE, include=FALSE}
+ggsave("210624_NMF_Projected_MousetoHuman.pdf", projection_NMF_boxplot)
+```
+
+Heatmap to Compare Pre/Post Projected Patterns
+```{r}
+NMF_projection_long$log.weight <- log(NMF_projection_long$Factors)
+
+NMF_projection_heatmap <- ggplot(NMF_projection_long, mapping = aes(x = Exercise_Pattern, y = Factors, fill = log.weight)) + 
+  geom_tile() +
+  labs(title = "NMF Projection") +
+  xlab(label = "Patterns") + 
+  ylab(label = "Projected Human Samples") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5), axis.text.y = element_text(size = 5)) + 
+  scale_fill_viridis(option = "plasma")
+NMF_projection_heatmap
+
 ```
 
 Scatterplot to Compare Pre/Post Projected Patterns
@@ -738,35 +785,78 @@ mouse_symbol_de <- mouse_symbol_GO_de[,c(5,6)]
 
 **Functional Enrichment Analysis**  
 
-Mouse ggprofiler https://biit.cs.ut.ee/gprofiler/page/r
+Mouse ggprofiler https://biit.cs.ut.ee/gprofiler/page/r  
+g:Profiler uses all the genes annotated to that term as an input (in this case about six hundred human genes associated to heart development). Fully numeric identifiers need to be prefixed with the corresponding namespace. g:Profiler will automatically prefix all the detected numeric IDs using the prefix determined by the selected numeric namespace parameter.  
+gost enables to perform functional profiling of gene lists. The function performs statistical enrichment analysis to find over-representation of functions from Gene Ontology, biological pathways like KEGG and Reactome, human disease annotations, etc. This is done with the hypergeometric test followed by correction for multiple testing.  
+In order to reduce the amount of false positives, a multiple testing correction method is applied to the enrichment p-values. By default, our tailor-made algorithm g:SCS is used (correction_method = "gSCS" with synonyms g_SCS and analytical), but there are also options to apply the Bonferroni correction (correction_method = "bonferroni") or FDR (correction_method = "fdr"). The adjusted p-values are reported in the results.  
+<br>
+Select each pattern and combine with its standard deviation ((note: might not have been necessary to get standard deviation...))  
 ```{r eval=FALSE, include=FALSE}
 #input needs to be a dataframe with genes and p values, so each pattern will need its own dataframe
 #sample_factors has already been extracted from AP_human, need to do the same with the stdev
+#make loop for this in the future
 mouse_feature <- as.data.frame(AP_mouse@featureLoadings)
 mouse_feature_stdev <- as.data.frame(AP_mouse@loadingStdDev)
+pattern1_mouse <- dplyr::select(mouse_feature, Pattern_1) %>% cbind(., StdDev = mouse_feature_stdev$Pattern_1)
+pattern2_mouse <- dplyr::select(mouse_feature, Pattern_2) %>% cbind(., StdDev = mouse_feature_stdev$Pattern_2)
 pattern3_mouse <- dplyr::select(mouse_feature, Pattern_3) %>% cbind(., StdDev = mouse_feature_stdev$Pattern_3)
 head(pattern3_mouse)
-pattern1_mouse <- dplyr::select(mouse_feature, Pattern_1) %>% cbind(., StdDev = mouse_feature_stdev$Pattern_1)
-head(pattern1_mouse)
-
-#FILTERING BY STD DEV... Should I have done this? Try without filtering?
-#want to look at just the significant genes of pattern 5
-pattern3_sig_mouse <- pattern3_mouse[pattern3_mouse$StdDev < 0.05,]
-pattern1_sig_mouse <- pattern1_mouse[pattern1_mouse$StdDev < 0.05,]
-#narrow down significant genes list by selecting the highest weighted genes
-#REDO, and try instead of std dev filtering
-
-#named list so genes names are retained and not changed to query_1 from gost()
-#pattern3_sig_mouse <- as.list(pattern3_sig_mouse, all.names = TRUE)
-pattern3_mouse_names <- rownames(pattern3_sig_mouse) %>% as.list()
-names(pattern3_mouse_names) <- rownames(pattern3_sig_mouse)
-pattern1_mouse_names <- rownames(pattern1_sig_mouse) %>% as.list()
-names(pattern1_mouse_names) <- rownames(pattern1_sig_mouse)
+pattern4_mouse <- dplyr::select(mouse_feature, Pattern_4) %>% cbind(., StdDev = mouse_feature_stdev$Pattern_4)
+pattern5_mouse <- dplyr::select(mouse_feature, Pattern_5) %>% cbind(., StdDev = mouse_feature_stdev$Pattern_5)
+pattern6_mouse <- dplyr::select(mouse_feature, Pattern_6) %>% cbind(., StdDev = mouse_feature_stdev$Pattern_6)
+pattern7_mouse <- dplyr::select(mouse_feature, Pattern_7) %>% cbind(., StdDev = mouse_feature_stdev$Pattern_7)
+pattern8_mouse <- dplyr::select(mouse_feature, Pattern_8) %>% cbind(., StdDev = mouse_feature_stdev$Pattern_8)
+pattern9_mouse <- dplyr::select(mouse_feature, Pattern_9) %>% cbind(., StdDev = mouse_feature_stdev$Pattern_9)
 ```
 
+Filtering for highest weighted genes
+```{r}
+#FILTERING BY STD DEV... Should I have done this? Try without filtering?
+#want to look at just the significant genes of patterns 3 and 1
+#pattern3_sig_mouse <- pattern3_mouse[pattern3_mouse$StdDev < 0.05,]
+#pattern1_sig_mouse <- pattern1_mouse[pattern1_mouse$StdDev < 0.05,]
 
+#narrow down significant genes list by selecting the highest weighted genes
+#REDO, and try instead of std dev filtering
+top150_mouse_pattern1 <- slice_max(pattern1_mouse, order_by = Pattern_1, n = 150)
+top150_mouse_pattern2 <- slice_max(pattern2_mouse, order_by = Pattern_2, n = 150)
+top150_mouse_pattern3 <- slice_max(pattern3_mouse, order_by = Pattern_3, n = 150)
+top150_mouse_pattern4 <- slice_max(pattern4_mouse, order_by = Pattern_4, n = 150)
+top150_mouse_pattern5 <- slice_max(pattern5_mouse, order_by = Pattern_5, n = 150)
+top150_mouse_pattern6 <- slice_max(pattern6_mouse, order_by = Pattern_6, n = 150)
+top150_mouse_pattern7 <- slice_max(pattern7_mouse, order_by = Pattern_7, n = 150)
+top150_mouse_pattern8 <- slice_max(pattern8_mouse, order_by = Pattern_8, n = 150)
+top150_mouse_pattern9 <- slice_max(pattern9_mouse, order_by = Pattern_9, n = 150)
+
+```
+
+Making named lists for gost() input
+```{r}
+#named list so genes names are retained and not changed to query_1 from gost()
+#pattern3_sig_mouse <- as.list(pattern3_sig_mouse, all.names = TRUE)
+top150_mouse_pattern1_names <- rownames(top150_mouse_pattern1) %>% as.list()
+names(top150_mouse_pattern1_names) <- rownames(top150_mouse_pattern1)
+top150_mouse_pattern2_names <- rownames(top150_mouse_pattern2) %>% as.list()
+names(top150_mouse_pattern2_names) <- rownames(top150_mouse_pattern2)
+top150_mouse_pattern3_names <- rownames(top150_mouse_pattern3) %>% as.list()
+names(top150_mouse_pattern3_names) <- rownames(top150_mouse_pattern3)
+top150_mouse_pattern4_names <- rownames(top150_mouse_pattern4) %>% as.list()
+names(top150_mouse_pattern4_names) <- rownames(top150_mouse_pattern4)
+top150_mouse_pattern5_names <- rownames(top150_mouse_pattern5) %>% as.list()
+names(top150_mouse_pattern5_names) <- rownames(top150_mouse_pattern5)
+top150_mouse_pattern6_names <- rownames(top150_mouse_pattern6) %>% as.list()
+names(top150_mouse_pattern6_names) <- rownames(top150_mouse_pattern6)
+top150_mouse_pattern7_names <- rownames(top150_mouse_pattern7) %>% as.list()
+names(top150_mouse_pattern7_names) <- rownames(top150_mouse_pattern7)
+top150_mouse_pattern8_names <- rownames(top150_mouse_pattern8) %>% as.list()
+names(top150_mouse_pattern8_names) <- rownames(top150_mouse_pattern8)
+top150_mouse_pattern9_names <- rownames(top150_mouse_pattern9) %>% as.list()
+names(top150_mouse_pattern9_names) <- rownames(top150_mouse_pattern9)
+
+```
+
+#delete afterwards, using as reference
 ```{r eval=FALSE, include=FALSE}
-#look into exclude_iea and correction_methods
 gost_res_mouse <- gost(query = pattern3_mouse_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
                 user_threshold = 0.05, correction_method = "g_SCS", 
                 domain_scope = "annotated", custom_bg = NULL, 
@@ -782,8 +872,57 @@ gost_mouse_pattern3_top150gene_fea <- gost_res_mouse$result
 #conversion to make this dataframe writable for csv
 gost_mouse_pattern3_top150gene_fea <- apply(gost_mouse_pattern3_top150gene_fea,2,as.character)
 write.csv2(gost_mouse_pattern3_top150gene_fea, file =  "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/gost_mouse_pattern6_top150gene_fea.csv")
+```
+
+gost() run for each pattern
+```{r}
+gost_res_mouse_1 <- gost(query = top150_mouse_pattern1_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+                user_threshold = 0.05, correction_method = "g_SCS", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "", sources = c("KEGG"), as_short_link = FALSE)
+
+gost_res_mouse_2 <- gost(query = top150_mouse_pattern2_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+                user_threshold = 0.05, correction_method = "g_SCS", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "", sources = c("KEGG"), as_short_link = FALSE)
+
+gost_res_mouse_3 <- gost(query = top150_mouse_pattern3_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+                user_threshold = 0.05, correction_method = "g_SCS", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "", sources = c("KEGG"), as_short_link = FALSE)
+
+gost_res_mouse_4 <- gost(query = top150_mouse_pattern4_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+                user_threshold = 0.05, correction_method = "g_SCS", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "", sources = c("KEGG"), as_short_link = FALSE)
+
+gost_res_mouse_5 <- gost(query = top150_mouse_pattern5_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+                user_threshold = 0.05, correction_method = "g_SCS", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "", sources = c("KEGG"), as_short_link = FALSE)
+
+gost_res_mouse_6 <- gost(query = top150_mouse_pattern6_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+                user_threshold = 0.05, correction_method = "g_SCS", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "", sources = c("KEGG"), as_short_link = FALSE)
+
+gost_res_mouse_7 <- gost(query = top150_mouse_pattern7_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+                user_threshold = 0.05, correction_method = "g_SCS", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "", sources = c("KEGG"), as_short_link = FALSE)
+
+gost_res_mouse_8 <- gost(query = top150_mouse_pattern8_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+                user_threshold = 0.05, correction_method = "g_SCS", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "", sources = c("KEGG"), as_short_link = FALSE)
+
+gost_res_mouse_9 <- gost(query = top150_mouse_pattern9_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+                user_threshold = 0.05, correction_method = "g_SCS", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "", sources = c("KEGG"), as_short_link = FALSE)
 
 
+head(gost_res_mouse_9)
 ```
 
 
@@ -813,21 +952,93 @@ pattern5_human_names <- rownames(pattern5_sig) %>% as.list()
 names(pattern5_human_names) <- rownames(pattern5_sig)
 ```
 
-Human gprofiler Run
-```{r eval=FALSE, include=FALSE}
-#look into exclude_iea and correction_methods
-gost_res <- gost(query = rownames(pattern3_), organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
-                user_threshold = 0.05, correction_method = "g_SCS", 
-                domain_scope = "annotated", custom_bg = NULL, 
-                numeric_ns = "", sources = NULL, as_short_link = FALSE)
-head(gost_res$result)
+Subsetting human data differently
+```{r}
+human_feature_df <- rownames_to_column(human_feature, var = "Genes")
+human_nmf_geneweight_long <- pivot_longer(data = human_feature_df, 
+                         cols = -Genes,
+                         names_to = "Pattern", 
+                         values_to = "Gene_weight")
+head(human_nmf_geneweight_long)
 
-gost_plot <- gostplot(gost_res, capped = TRUE, interactive = TRUE)
-gost_plot
-gost_plot2 <- gostplot(gost_res, capped = FALSE, interactive = FALSE)
-gost_plot2
+human_pattern2 <- human_nmf_geneweight_long %>% dplyr::filter( Pattern == "Pattern_2") %>% slice_max(order_by = Gene_weight, n = 150)
+human_pattern5 <- human_nmf_geneweight_long %>% dplyr::filter( Pattern == "Pattern_5") %>% slice_max(order_by = Gene_weight, n = 150)
+human_pattern9 <- human_nmf_geneweight_long %>% dplyr::filter( Pattern == "Pattern_9") %>% slice_max(order_by = Gene_weight, n = 150)
+
+human_pattern2_names <- as.list(human_pattern2$Genes)
+names(human_pattern2_names) <- human_pattern2$Genes
+
+human_pattern5_names <- as.list(human_pattern5$Genes)
+names(human_pattern5_names) <- human_pattern5$Genes
+
+human_pattern9_names <- as.list(human_pattern9$Genes)
+names(human_pattern9_names) <- human_pattern9$Genes
+
 ```
 
+Human gprofiler gost() runs
+```{r eval=FALSE, include=FALSE}
+#look into exclude_iea and correction_methods
+gost_res_2 <- gost(query =  human_pattern2_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+                user_threshold = 0.05, correction_method = "g_SCS", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "", sources = c("REAC", "KEGG", "CORUM"), as_short_link = FALSE)
+head(gost_res_2$result)
+
+gost_res_5 <- gost(query =  human_pattern5_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+                user_threshold = 0.05, correction_method = "g_SCS", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "", sources = c("REAC", "KEGG", "CORUM"), as_short_link = FALSE)
+head(gost_res_5$result)
+
+gost_res_9 <- gost(query =  human_pattern9_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
+                user_threshold = 0.05, correction_method = "g_SCS", 
+                domain_scope = "annotated", custom_bg = NULL, 
+                numeric_ns = "", sources = c("REAC", "KEGG", "CORUM"), as_short_link = FALSE)
+head(gost_res_9$result)
+
+```
+
+Data wrangling for human alluvial point
+```{r}
+#need to add an identifier for pattern number for each dataframe
+gost_pattern2 <- cbind(gost_res_2$result, pattern = c(rep("pattern_2")))
+gost_pattern5 <- cbind(gost_res_5$result, pattern = c(rep("pattern_5")))
+gost_pattern9 <- cbind(gost_res_9$result, pattern = c(rep("pattern_9")))
+
+
+```
+
+Human alluvial plot - Patterns 2, 5, and 9
+```{r}
+#combine dataframes
+gost_pattern259_all <- rbind(gost_pattern2, gost_pattern5, gost_pattern9)
+#looking at just kegg results
+gost_pattern259 <- dplyr::filter(gost_pattern259, source == "KEGG")
+```
+
+```{r fig.align="center", echo = FALSE,fig.width = 7}
+
+ggalluvial_KEGG_259 <- ggplot(gost_pattern259,
+       aes(axis1 = pattern, axis2 = term_name, y = query_size)) +
+  geom_alluvium(aes(fill = term_name), width = 1/12) +
+  geom_stratum(width = 1/24, fill = "black", color = "grey") +
+ # geom_label(stat = "stratum", label.size = 0.15, aes(label = NULL, size = .5), nudge_x = -0.1) +
+  scale_x_discrete(limits = c("Pattern", "Pathway"), expand = c(.05, .05)) +
+  scale_colour_viridis_d(option = "magma") +
+  labs(y = NULL) +
+  theme(axis.text.x = element_text(size=10)) +
+  theme(panel.grid = element_blank()) +
+  guides(fill=guide_legend(title="KEGG Pathways"), col = guide_legend(nrow = 2)) + 
+  ggtitle("Pathways Associated with Human Patterns")
+ggalluvial_KEGG_259
+
+```
+
+
+```{r}
+ggsave("210626_human_patterns_259_kegg_alluvialplot.pdf", ggalluvial_KEGG_259)
+```
 
 Alluvial Plot - Mouse  
 Looking at all gost results and just KEGG/Reactome/Corum
@@ -869,17 +1080,6 @@ Alluvial Plot - Mouse
 Looking just at gost profiler KEGG results
 ```{r eval=FALSE, include=FALSE}
 mouse_KEGG_3thru6 <- dplyr::filter(mouse_rkc_3thru6, source == "KEGG")
-
-ggalluvial_KEGG <- ggplot(mouse_KEGG_3thru6,
-       aes(axis1 = pattern, axis2 = term_name, y = query_size)) +
-  geom_alluvium(aes(fill = term_name), width = 1/12) +
-  geom_stratum(width = 1/12, fill = "black", color = "grey") +
-  geom_label(stat = "stratum", aes(label = after_stat(stratum))) +
-  scale_x_discrete(limits = c("Pattern", "Pathway"), expand = c(.05, .05)) +
-  scale_fill_brewer(type = "qual", palette = "Set1") +
-  ggtitle("Mouse Patterns to Pathways")
-ggalluvial_KEGG
-
 
 ggalluvial_KEGG <- ggplot(mouse_KEGG_3thru6,
        aes(axis1 = pattern, axis2 = term_name, y = query_size)) +
