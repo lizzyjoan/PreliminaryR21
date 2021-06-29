@@ -516,6 +516,55 @@ ggalluvial <- ggplot(data = spearman_tsea_up,
 
 ```
 
+Jen's code to recreate figure  
+```{r}
+#geom_point(aes(size = magnitude)) +
+#scale_size(range = c(1,5))
+plot_recreate_2 <- ggplot(result(lincs_human)[1:30,], aes(x=reorder(Description, WTCS_Pval), y=WTCS, color= WTCS_Pval))+ geom_point() +coord_flip()  + ggtitle("Pathway Enrichment") + labs(color = "-log10 p-value") + scale_color_viridis(option="plasma")+ theme_bw() +theme(text = element_text(size=17)) + scale_size(range = c(5,10))
+plot_recreate_2
+#+ xlab(Pathway) + ylab(FE_label)
+
+table_list = list("CMAP" = result(tsea_kegg_cmap_human), "LINCS" = result(tsea_lincs_up), "gCMAP" = result(dup_rct_res_gcmap_up), "Fisher" = result(dup_rct_res_fisher_over), "Spearman" = result(dup_rct_res_sp_up))
+comp_fea_res(table_list, rank_stat = "pvalue", Nshow = 20)
+```
+
+
+```{r}
+library(tidyverse)
+#code to get the lincs data and plot that I've been using
+lincs_human <- gess_lincs(qsig_lincs_human, sortby="NCS", tau=TRUE)
+result(lincs_human)[1:50,]
+lincs_res <- result(lincs_human)
+drugs_lincs_top <- unique(lincs_res$pert)[1:20]
+head(drugs_lincs_top)
+#remove BRD pertubagens
+non_BRD_perts <- str_remove_all(drugs_lincs_top, "BRD-")
+
+lincs_prelim_plot <- signatureSearch::gess_res_vis(lincs_res, drugs = non_BRD_perts, col = "NCS") + 
+  labs(x = "Drug Perturbation", y = "Normalized Connectivity Score") + 
+  labs(title = "Exercise Signature Comparison to LINCS") + 
+  scale_shape_discrete(labels = c("Normal Cell Line", "Cancer Cell Line")) 
+lincs_prelim_plot
+```
+
+```{r}
+ggsave(filename = "210629_lincs_pert_plot.pdf", lincs_prelim_plot)
+```
+
+```{r}
+table_list = list("CMAP" = result(tsea_kegg_cmap_human), "LINCS" = result(tsea_lincs_up), "gCMAP" = result(dup_rct_res_gcmap_up), "Fisher" = result(dup_rct_res_fisher_over), "Spearman" = result(dup_rct_res_sp_up))
+
+top_pathways <- comp_fea_res(table_list, rank_stat = "pvalue", Nshow = 20) + 
+  labs(x = "Gene Expression Signature Search Method", y = "KEGG Pathways") +
+  labs(title = "Top Exercise Signature Pathways") +
+  theme(panel.grid = element_blank())
+
+top_pathways
+```
+
+```{r}
+ggsave(filename = "210629_SignatureSearch_TopPathways.pdf", top_pathways)
+```
 
 ## END
 Location of final scripts:
