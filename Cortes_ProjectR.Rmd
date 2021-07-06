@@ -1161,7 +1161,6 @@ ggalluvial_GO <- ggplot(mouse_GO_3thru6,
   scale_fill_brewer(type = "qual", palette = "Set1") +
   ggtitle("Mouse Patterns to Pathways")
 ggalluvial_GO
-
 ```
 
 
