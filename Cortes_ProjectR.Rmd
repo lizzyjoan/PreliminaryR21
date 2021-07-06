@@ -375,14 +375,14 @@ human_NMF_boxplot <- ggplot(human_sampleFactors_long, aes(x = Exercise_Pattern, 
   geom_point(aes(color = Exercise)) +
   geom_jitter(size = 2, alpha = 0.25, width = 0.2) +
   scale_colour_viridis_d() +
-  labs(x = "Pre and Post Exercise Patterns", y = "Sample Weights") + 
+  labs(x = "NMF Patterns", y = "Sample Weights") + 
   theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-    labs(title = "Human NMF Pre/Post Exercise Patterns")
+    labs(title = "NMF Patterns in Pre/Post Exercise Samples")
 human_NMF_boxplot
 ```
 
 ```{r eval=FALSE, include=FALSE}
-ggsave("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/210628_human_NMF_prepost_pattern_boxplot_verticlelabels.pdf", human_NMF_boxplot)
+ggsave("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/210629_human_NMF_prepost_pattern_boxplot.pdf", human_NMF_boxplot)
 
 ```
 
@@ -530,13 +530,17 @@ hclustfun=function(x) hclust(x, method="average"), main = "Top 20 Human NMF Avg 
 )
 # Error in plot.new() : figure margins too large
 
-human_nmf_heatmap2 <-  heatmap.2(top20_var_human_featloadings_matrix,col=viridis, trace='none', margin=c(3,5),
+#human_nmf_heatmap2 <-  
+  
+png(file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/210628_Human_NMF_Variance_GeneWeights.png")  
+heatmap.2(top20_var_human_featloadings_matrix,col=viridis, trace='none', margin=c(8,10),
 distfun=function(c) as.dist(1-cor(t(c))) ,
-cexCol=1,cexRow=.5,scale = "row",
-hclustfun=function(x) hclust(x, method="average"), main = "Top 20 Human NMF Varied Gene Weights"
+cexCol=1.5,cexRow=1.4,scale = "row", xlab = "NMF Patterns",
+hclustfun=function(x) hclust(x, method="average"), main = "Most Variable Genes Across NMF Patterns"
 )
+dev.off()
 
-
+ggsave(file = "210628_Human_NMF_Top20Variance_GeneWeights.pdf", human_nmf_heatmap2)
 ```
 
 ```{r}
@@ -548,25 +552,49 @@ hclustfun=function(x) hclust(x, method="average"), main = "Top 20 Human NMF Vari
 ggsave("210621_NMF_human_featloadings_heatmap.pdf", human_featloadings_heatmap)
 ```
 
-**NMF Projection**  
-The mouse NMF patterns can then be projected onto the human data
+**NMF Projection, Mouse onto Human**  
+The mouse NMF patterns can then be projected onto the human data  
+Scatterplot to compare patterns
 ```{r}
-#NMF to project into PC's from mouse expression data
 human_data <- as.matrix(human_symbol_data)
 human_NMF <- projectR(human_data,loadings=AP_mouse, full=TRUE,
                      dataNames=rownames(human_data))
 
-#Using metadata and NMF projection to make a dataframe that can be plotted
-human_meta <- column_to_rownames(human_info_test, var = "SRR")
-#dNMF <- human_NMF %>% data.frame() %>% t() %>% cbind(., )
+#pval_NMF <- human_NMF$pval
 projection_NMF <- human_NMF$projection %>% t() %>% cbind(., human_info)
-pval_NMF <- human_NMF$pval
-#plot pca
-projection_plot <- ggplot(projection_NMF, aes(x = Pattern_5, y = Pattern_6, colour = PrePost)) + geom_point() + ggtitle("Mouse Data NMF Patterns Projected onto Human Data")
+
+#plot scatterplot
+projection_plot <- ggplot(projection_NMF, aes(x = Pattern_3, y = Pattern_9, colour = PrePost)) + geom_point() + ggtitle("Mouse Data NMF Patterns Projected onto Human Data")
 projection_plot
-ggsave("NMF_Mouse_Projected_to_Human_14pat5000it.pdf", projection_plot)
+#ggsave("NMF_Mouse_Projected_to_Human_14pat5000it.pdf", projection_plot)
 
 ```
+
+
+
+```{r}
+ggsave("210628_Scatterplot_Projected_MousetoHuman_Patterns3and9.pdf", projection_plot)
+
+```
+PCA to Compare Projected Patterns
+```{r}
+#want pre ad post in the pattern names for row names
+projection_NMF_mouse2human_df <- projection_NMF %>% rownames_to_column(var = "Names") %>% pivot_longer(starts_with("Pattern_"), names_to = "Patterns", values_to = "Projections") %>% dplyr::select(c("Names",  "Patterns", "Projections")) %>% unite("PrePost_Patterns", "Patterns", "Names", sep = "_", remove = FALSE) %>% pivot_wider("PrePost_Patterns", names_from = "Patterns", values_from = "Projections")
+
+
+#PCA
+projection_NMF_mouse2human_pca <- prcomp(human_NMF$projection)
+projection_NMF_mouse2human_pca_plot <- ggplot(as.data.frame(projection_NMF_mouse2human_pca$x), aes(x=PC1,y=PC2, colour = "red", "blue")) +geom_point()
+projection_NMF_mouse2human_pca_plot
+
+pc_human <- prcomp(t(human_symbol_data))
+pc_mouse <- prcomp(t(conv_mouse))
+#find variance
+pc_var_mouse <- round(((pc_mouse$sdev)^2/sum(pc_mouse$sdev^2))*100,2)
+pca_mouse_df <- data.frame(cbind(pc_mouse$x, mouse_info))
+
+```
+
 Scatterplot Projected Pattern Comparison
 ```{r}
 projection_colors <- scale_colour_manual(values = c("red","green","blue","black"),
@@ -594,6 +622,7 @@ projection_NMF_boxplot <- ggplot(NMF_projection_long, aes(x = Exercise_Pattern, 
     labs(title = "Projected Mouse NMF Pre/Post Exercise Patterns onto Human Data")
 projection_NMF_boxplot
 ```
+
 ```{r eval=FALSE, include=FALSE}
 ggsave("210624_NMF_Projected_MousetoHuman.pdf", projection_NMF_boxplot)
 ```
@@ -626,6 +655,17 @@ projection_NMF_scatterplot
 
 ```
 
+**NMF Projection, Human onto Mouse**  
+```{r}
+mouse_NMF <- projectR(as.matrix(conv_mouse),loadings=AP_human, full=TRUE,
+                     dataNames=rownames(conv_mouse))
+
+projection_NMF_human2mouse <- mouse_NMF$projection %>% t() %>% cbind(., mouse_info)
+
+#plot scatterplot
+projection_plot_human2mouse <- ggplot(projection_NMF_human2mouse, aes(x = Pattern_6, y = Pattern_9, colour = Exercise)) + geom_point() + ggtitle("Mouse Data NMF Patterns Projected onto Human Data")
+projection_plot_human2mouse
+```
 
 
 **PC Projection**  
@@ -644,6 +684,7 @@ pca_mouse_df <- data.frame(cbind(pc_mouse$x, mouse_info))
 Project PC's
 ```{r}
 PCA_projectr <- projectR(human_data, loadings = pc_mouse, full = TRUE, dataNames = rownames(human_data))
+human_meta <- column_to_rownames(human_info_test, var = "SRR")
 human_meta_t <- t(human_meta)
 PCA_projectr_t <- t(PCA_projectr[[1]])
 PCA_projectr_df <- cbind(PCA_projectr_t, human_meta)
@@ -652,12 +693,16 @@ PCA_projectr_df <- cbind(PCA_projectr_t, human_meta)
 
 #Plot PCA
 dPCA <- data.frame(cbind(t(PCA_projectr[[1]]),PCA_projectr_df))
-projected_PCA <- ggplot(PCA_projectr_df, aes(x = PC1, y = PC2, colour = PrePost)) + geom_point() +  ggtitle("Mouse Principal Components Projected onto Human Data")
+projected_PCA <- ggplot(PCA_projectr_df, aes(x = PC1, y = PC2, colour = PrePost)) + 
+  geom_point(size = 3.5) + 
+  scale_color_viridis_d() +
+  theme(panel.grid = element_blank()) +
+  ggtitle("Mouse Principal Components Projected onto Human Data")
 projected_PCA
 ```
 
 ```{r eval=FALSE, include=FALSE}
-ggsave("PCA_Method_Mouse_Projected_onto_Human.pdf", projected_PCA)
+ggsave("210629_PCA_Method_Mouse_Projected_onto_Human_new.pdf", projected_PCA)
 ```
 
 
@@ -1030,14 +1075,14 @@ ggalluvial_KEGG_259 <- ggplot(gost_pattern259,
   theme(axis.text.x = element_text(size=10)) +
   theme(panel.grid = element_blank()) +
   guides(fill=guide_legend(title="KEGG Pathways"), col = guide_legend(nrow = 2)) + 
-  ggtitle("Pathways Associated with Human Patterns")
+  ggtitle("Pre/Post Exercise-Associated Pattern Pathways")
 ggalluvial_KEGG_259
 
 ```
 
 
 ```{r}
-ggsave("210626_human_patterns_259_kegg_alluvialplot.pdf", ggalluvial_KEGG_259)
+ggsave("210629_human_patterns_259_kegg_alluvialplot.pdf", ggalluvial_KEGG_259)
 ```
 
 Alluvial Plot - Mouse  
