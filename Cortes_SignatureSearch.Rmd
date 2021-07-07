@@ -543,27 +543,35 @@ non_BRD_perts <- str_remove_all(drugs_lincs_top, "BRD-")
 lincs_prelim_plot <- signatureSearch::gess_res_vis(lincs_res, drugs = non_BRD_perts, col = "NCS") + 
   labs(x = "Drug Perturbation", y = "Normalized Connectivity Score") + 
   labs(title = "Exercise Signature Comparison to LINCS") + 
-  scale_shape_discrete(labels = c("Normal Cell Line", "Cancer Cell Line")) 
+  scale_shape_discrete(labels = c("Normal Cell Line", "Cancer Cell Line")) +
+  theme(panel.grid = element_blank(), axis.text.x = element_text(size = 14), axis.title = element_text(size = 16), title = element_text(size = 18), legend.text = element_text(size = 16)) + 
+  theme(plot.margin = unit(c(1,1,1,.5),"cm"))
 lincs_prelim_plot
+
 ```
 
 ```{r}
-ggsave(filename = "210629_lincs_pert_plot.pdf", lincs_prelim_plot)
+ggsave(filename = "210706_lincs_pert_plot.pdf", lincs_prelim_plot)
 ```
 
 ```{r}
 table_list = list("CMAP" = result(tsea_kegg_cmap_human), "LINCS" = result(tsea_lincs_up), "gCMAP" = result(dup_rct_res_gcmap_up), "Fisher" = result(dup_rct_res_fisher_over), "Spearman" = result(dup_rct_res_sp_up))
 
 top_pathways <- comp_fea_res(table_list, rank_stat = "pvalue", Nshow = 20) + 
-  labs(x = "Gene Expression Signature Search Method", y = "KEGG Pathways") +
-  labs(title = "Top Exercise Signature Pathways") +
-  theme(panel.grid = element_blank())
+  labs(x = "Gene Expression Signature \nSearch Method", y = "KEGG Pathways") +
+  labs(title = "Top Exercise \nSignature Pathways") +
+  theme(panel.grid = element_blank()) +
+  theme(panel.grid = element_blank(), axis.text.x = element_text(size = 16), axis.title = element_text(size = 16), title = element_text(size = 18), legend.text = element_text(size = 16)) +
+  theme(plot.margin = unit(c(.75,.1,.75,.5),"cm")) #top, right, bottom, left
 
 top_pathways
+
+#theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 16), axis.title = element_text(size = 16), title = element_text(size = 18), legend.text = element_text(size = 16)) +
+#  theme(plot.margin = unit(c(1,1,1.5,1.2),"cm")) + #top, right, bottom, left
 ```
 
 ```{r}
-ggsave(filename = "210629_SignatureSearch_TopPathways.pdf", top_pathways)
+ggsave(filename = "210706_SignatureSearch_TopPathways.pdf", top_pathways)
 ```
 
 ## END
