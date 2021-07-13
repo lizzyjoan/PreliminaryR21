@@ -1,8 +1,12 @@
 ---
 title: "ProjectR"
 author: "Lizzy Ramsey"
-date: "4/26/2021"
-output: html_document
+date: "2021/07/08"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    
 ---
 
 ```{r setup, include=FALSE}
@@ -25,43 +29,37 @@ library(gprofiler2)
 library(EnsDb.Hsapiens.v86)
 library(viridis)
 library(reshape2)
+BiocManager::install("org.Hs.eg.db")
+library(org.Hs.eg.db)
 ```
 
 ### Purpose
-Publicly available mouse and human datasets of pre/post gene expression in skeletal muscle were used to project mouse patterns onto human data using ProjectR package. The end goal is to find latent variables in mouse gene expression to project onto human data to make mouse data better recapitulate human data.
+Publicly available mouse and human datasets of pre/post gene expression in skeletal muscle were used to project mouse patterns onto human data using ProjectR package. The end goal is to find latent variables in mouse gene expression to project onto human data to make mouse data better recapitulate human data.  
 Built with R `r getRversion()`  
-Lab notebook: https://docs.google.com/document/d/1YcSzWmBNcq038HekdMqUrlnSpORaMbX597MM1hvmTdU/edit  
+[Lab notebook](https://docs.google.com/document/d/1YcSzWmBNcq038HekdMqUrlnSpORaMbX597MM1hvmTdU/edit)  
+[Wrike project](https://www.wrike.com/open.htm?id=657384229)  
   
-**Overview**  
-Step 1: Load packages  
-Step 2: Read in RNAseq raw counts  
-Step 3: Normalize using DESeq2  
-Step 4: PCA of mouse data  
-Step 5: Convert mouse Ensembl gene ID's to symbols  
-Step 6: Convert mouse symbols to human symbols  
-Step 7: NMF method and visualization  
-Step 8: PCA method and visualization  
-Step 9: Clustering method and visualization  
-Step 10: Functional enrichment analysis  
-  
+
 **Data**  
-Mouse Data: *GSE97718*  
-- 16 samples  
-- Control diet (n=8) high fat diet (n=8)  
-- Pre and post exercise samples collected from each mouse  
-- RNA isolated from quadricep skeletal muscle  
-- fastq's downloaded from ENA  
-- data preprocessed with RNA-seq STAR pipeline by Lara Ianov  
+Mouse Data: [GSE97718](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE97718)  
+* 16 samples  
+* Control diet (n=8) high fat diet (n=8)  
+* Pre and post exercise samples collected from each mouse  
+* RNA isolated from quadricep skeletal muscle  
+* fastq's downloaded from ENA  
+* data preprocessed with RNA-seq STAR pipeline by Lara Ianov  
   
-Human Data: *GSE108643*  
-- 59 samples  
-- Participants divided by BMI: lean ((BMI<25, 18.5- 24.1 kg/m2, n=15) and Ov/Ob (BMI≥25, 25.5- 36.9 kg/m2, n=15)  
-- Pre and post exercise samples collected from each participant  
-- RNA isolated from vastus lateralis muscle biopsies  
-- fastq's downloaded from ENA  
-- data preprocessed with RNA-seq STAR pipeline by Lara Ianov  
+Human Data: [GSE108643](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE108643)  
+* 59 samples  
+* Participants divided by BMI: lean ((BMI<25, 18.5- 24.1 kg/m2, n=15) and Ov/Ob (BMI≥25, 25.5- 36.9 kg/m2, n=15)  
+* Pre and post exercise samples collected from each participant  
+* RNA isolated from vastus lateralis muscle biopsies  
+* fastq's downloaded from ENA  
+* data preprocessed with RNA-seq STAR pipeline by Lara Ianov  
   
-**Read in Mouse Data**  
+System which operations were done on: MacBook Pro (16-inch, 2019), Processor 2.4 GHz 8-Core Intel Core i9, Memory 64 GB 2667 MHz DDR4, Graphics AMD Radeon Pro 5300M 4 GB Intel UHD Graphics 630 1536 MB
+
+### Read in Mouse Data 
 ```{r Mouse_ReadIn}
 #Load in raw counts for Mouse pre/post exercise experiment
 mouse_counts <- read.delim("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/mouse210321_fixed_raw_counts.txt", header = TRUE, row.names = 1, sep = "\t", stringsAsFactors = FALSE)
@@ -69,7 +67,7 @@ mouse_counts <- mouse_counts[, -c(1:3)]
 ```
 
 
-**Make Mouse Metadata Table**  
+**Make Mouse Metadata Table**   
 Metadata/info table not supplied with this study. Using GEO, manually created (see here *https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE97718*)
 ```{r Mouse_Metadata}
 #metadata not included with this dataset.. 
@@ -83,7 +81,7 @@ mouse_info <- column_to_rownames(mouse_info, var = "Name")
 
 ```
 
-**Read in Human Data** 
+### Read in Human Data  
 ```{r Human_ReadIn}
 #HUMAN data read in
 human_data <- read.delim("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/human_fixed_raw_counts.txt", header = TRUE, row.names = 1, sep = "\t")
@@ -102,7 +100,7 @@ human_info <- column_to_rownames(human_info_test, var = "Names")
 
 ```
 
-**DESeq2 for Mouse**  
+### Normalization for Mouse 
 DESeq2 was used to normalize data  
 
 ```{r Mouse_DESeq2, message=FALSE}
@@ -121,7 +119,7 @@ mouse_deseq2_pca <- DESeq2::plotPCA(mouse_vsd, intgroup = "Exercise", )
 mouse_deseq2_pca
 ```
 
-**DESeq2 for Human**  
+### Normalization for Human  
 DESeq2 was used to normalize data  
 
 ```{r Human_DESeq2, message=FALSE}
@@ -148,6 +146,7 @@ rownames(human_vsd_matrix) <- sub("\\..*", "", rownames(human_vsd_matrix))
 human_vsd_matrix <- human_vsd_matrix %>% as.data.frame() %>% rownames_to_column(., "ENSEMBL")
 ```
 
+### Annotation
 **Mouse Gene ID Conversion**  
 ```{r Mouse_ID_Conversion}
 #preparing outputs for conversion
@@ -159,7 +158,6 @@ write.csv(mouse_info, file= "New_Mouse_Metadata")
 ```
 
 **AnnotationDbi for Mouse Symbols**  
-
 ```{r Mouse_Annotation, message=FALSE}
 #annotation
 library(org.Mm.eg.db)
@@ -184,11 +182,8 @@ mouse_symbol <- mouse_symbol_GO[,c(5:20)]
 ```
 
 **AnnotationDbi for Human Symbols**  
-
 ```{r Human_Annotation}
 #annotation
-BiocManager::install("org.Hs.eg.db")
-library(org.Hs.eg.db)
 #retrieve conversion info from one ID type to another
 symbols_human <- AnnotationDbi::select(org.Hs.eg.db, keys = human_vsd_matrix$ENSEMBL, columns = c("SYMBOL", "GO"),keytype = "ENSEMBL")
 #determine indices for non-NA genes
@@ -207,7 +202,7 @@ human_symbol_data <- human_symbol_data_GO[,5:62]
 
 ```
 
-**Convert from mouse to human orthologous symbols**  
+### Convert Mouse to Human Orthologous Symbols  
 To be able to compare gene expression data from mouse to human, must convert first to orthologous genes
 
 ```{r Conversion_Function}
@@ -241,7 +236,7 @@ conv_mouse <- conv_mouse[,c(2:17)]
 
 ```
 
-**NMF Using CoGAPS for Mouse**  
+### NMF Using CoGAPS for Mouse  
 How many patterns? Might need to finish FEA to figure out. 
 ```{r CoGAPS_Params}
 #MOUSE NMF
@@ -261,6 +256,7 @@ AP_mouse <- CoGAPS(conv_mouse, params, nIterations = 5000)
 getMeanChiSq(AP_mouse)
 ```
 
+For Loop for Chi Square Matrix from CoGAPS Runs
 ```{r eval=FALSE, include=FALSE}
 #FOR LOOP
 #patterns 7:15 , iterations 1000, 3000, 5000, 6000, 7000, 8000, 10000, 12000, 15000
@@ -290,14 +286,9 @@ get_chisq(n_patterns, n_iterations)
 #chisq_matrix
 #best is 5000 iterations, 11 patterns
 
-#chisq_df <- as.data.frame(chisq_matrix)
-#ggplot(as.data.frame(chisq_matrix)) + aes(x = 1000, y = c(7:15)) + geom_line()
-#scatter.smooth(chisq_matrix)
-#plot(chisq_df, 1000, type = "b")
-
-#plot(AP_mouse)
 ```
-**NMF Using CoGAPS for Human**  
+
+### NMF Using CoGAPS for Human  
 
 ```{r Human_CoGAPS}
 #CoGAPS to find patterns in the data
@@ -307,7 +298,7 @@ plot(AP_human)
 ```
 
 Boxplot for Patterns in Mouse
-```{r Mouse_Pattern_Boxplot}
+```{r Mouse_Pattern_Boxplot, eval=FALSE, include=FALSE}
 mouse_samplefactors <- AP_mouse@sampleFactors %>% as.data.frame() 
 mouse_samplefactors <- cbind(mouse_samplefactors, Exercise = mouse_info$Exercise)
 
@@ -325,28 +316,27 @@ stripchart(pre_exercise, vertical = TRUE, method = "jitter", add = TRUE, pch = 2
 ```
 
 Mouse Pattern Violin Plots
-```{r Mouse_PreExercise_Violinplot}
+```{r Mouse_PreExercise_Violinplot, eval=FALSE, include=FALSE}
 mouse_long_pre <- pre_exercise %>% gather(key = "Patterns", value = "Val") %>% ggplot( aes(x = Patterns, y = Val, fill = Patterns)) + geom_violin()
 mouse_long_pre
 ```
 
 
-```{r Mouse_PostExercise_Violinplot}
+```{r Mouse_PostExercise_Violinplot, eval=FALSE, include=FALSE}
 mouse_long_post <- post_exercise %>% gather(key = "Patterns", value = "Val") %>% ggplot( aes(x = Patterns, y = Val, fill = Patterns)) + geom_violin()
 mouse_long_post
 ```
 
 
 
-```{r Mouse_Geneweight_Boxplot}
+```{r Mouse_Geneweight_Boxplot, results='hide'}
 mouse_featureLoadings <- AP_mouse@featureLoadings %>% as.data.frame() 
 boxplot_loadings <- boxplot(mouse_featureLoadings, xlab = "NMF Patterns", ylab = "Amplitude", las = 2, main = "Mouse Feature Loadings")
-
 
 ```
 
 Base R Boxplot for Patterns in Human
-```{r Basic_Human_Patterns_Boxplot}
+```{r Basic_Human_Patterns_Boxplot, results='hide'}
 human_samplefactors <- AP_human@sampleFactors %>% as.data.frame() 
 #%>% rownames_to_column(., var = "Sample")
 human_samplefactors <- cbind(human_samplefactors, Exercise = human_info$PrePost)
@@ -365,7 +355,7 @@ stripchart(pre_exercise_human, vertical = TRUE, method = "jitter", add = TRUE, p
 ```
  
 ggPlot Boxplot for Patterns in Human
-```{r Human_Patterns_ggPlot, fig.align="center", echo = FALSE,fig.width = 7}
+```{r Human_Patterns_ggPlot, fig.align="center", fig.width = 7}
 human_sampleFactors <- AP_human@sampleFactors
 
 human_sampleFactors_long <- human_sampleFactors %>% as.data.frame() %>% rownames_to_column(., var = "Sample") %>% pivot_longer( cols = -Sample, names_to = "Patterns", values_to = "Factors")  %>% mutate(Exercise = ifelse(grepl("Pre", Sample, ignore.case = TRUE), "Pre", "Post")) %>% unite( col = "Exercise_Pattern", Patterns, Exercise, sep = "_", remove = FALSE)
@@ -388,7 +378,7 @@ ggsave("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/210706_human_NMF_prepos
 ```
 
  
-Mouse NMF Heatmap  
+### Mouse NMF Heatmap  
 Heatmap set up the same as ProjectR vignette, using hierachical clustering
 ```{r}
 NMF_mouse <-heatmap.2(as.matrix(AP_mouse),col=viridis(100), trace='none',
@@ -438,7 +428,7 @@ head(mouse_featloadings_long)
 mouse_featloadings_long$log.weight <- log(mouse_featloadings_long$feat_weight)
 ```
 
-**Mouse NMF Amplitude Matrix Heatmap in ggplot**  
+### Mouse NMF Amplitude Matrix Heatmap in ggplot  
 Heatmap visualization of Amplitude/features/gene weight matrix (CoGAPS output)
 ```{r}
 mouse_featloadings_heatmap <- ggplot(mouse_featloadings_long, mapping = aes(x = pattern, y = genes, fill = log.weight)) + geom_tile() + xlab(label = "Patterns") + ylab(label = "Genes") + theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
@@ -462,7 +452,7 @@ plotPatternMarkers(AP_mouse, as.matrix(conv_mouse), patternPalette = "PiYG", sam
 
 ```
 
-**Human NMF Heatmap**  
+### Human NMF Heatmap  
 Heatmap visualization of Amplitude/features/gene weight matrix (CoGAPS output)
 ```{r}
 ##ggplot Heatmap
@@ -475,6 +465,21 @@ top20_var_human_featloadings_names <- names(sort(var_human_featloadings, decreas
 head(top20_var_human_featloadings_names)
 
 top20_var_human_featloadings_matrix <- human_featloadings[top20_var_human_featloadings_names,]
+```
+Human NMF Heatmap  
+Clustered heatmap of human NMF feature/amplitude/gene matrix, selecting for top 20 gene weights with greatest variance amongst patterns  
+```{r}
+#using wide-form of data to cluster
+#top20_human_matrix <- as.numeric(top20_human_featloadings)
+
+#png(file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/210706_Human_NMF_Variance_GeneWeights.png")  
+heatmap.2(top20_var_human_featloadings_matrix,col=viridis, trace='none', margin=c(11,11),
+distfun=function(c) as.dist(1-cor(t(c))) , xlab = "NMF Patterns", 
+srtCol = 45, cexCol=2,cexRow=1.7, scale = "row",
+hclustfun=function(x) hclust(x, method="average"), main = "Most Variable Genes Across NMF Patterns", cex.main = 6
+)
+#dev.off()
+
 ```
 
 Human - highest average weighted genes
@@ -495,7 +500,7 @@ top20_human_featloadings <- rownames_to_column(top20_human_featloadings, var = "
 dim(top20_human_featloadings)
 head(top20_human_featloadings)
 ```
-Human  
+Human - data wrangling  
 https://jcoliver.github.io/learn-r/009-expression-heatmaps.html
 ```{r}
 human_featloadings_long <- pivot_longer(data = top20_human_featloadings, 
@@ -507,8 +512,8 @@ human_featloadings_long$log.weight <- log(human_featloadings_long$feat_weight)
 head(human_featloadings_long)
 ```
 
-
-human Gene/Feature NMF Matrix Heatmap in ggplot
+Human NMF Heatmap
+Human Gene/Feature NMF Matrix Heatmap in ggplot, selecting for top highest weightest averages for genes amonst all patterns
 ```{r}
 human_featloadings_heatmap <- ggplot(human_featloadings_long, mapping = aes(x = pattern, y = genes, fill = log.weight)) + 
   geom_tile() +
@@ -519,38 +524,14 @@ human_featloadings_heatmap <- ggplot(human_featloadings_long, mapping = aes(x = 
   scale_fill_viridis(option = "plasma")
 human_featloadings_heatmap
 ```
-Clustering human data for heatmap
-```{r}
-#using wide-form of data to cluster
-#top20_human_matrix <- as.numeric(top20_human_featloadings)
-par(mar=c(7,4,4,2)+0.1) 
-human_nmf_heatmap2 <-  heatmap.2(top20_human_featloadings_matrix,col=viridis, trace='none', margin=c(3,5),
-distfun=function(c) as.dist(1-cor(t(c))) ,
-cexCol=1,cexRow=.5,scale = "row",
-hclustfun=function(x) hclust(x, method="average"), main = "Top 20 Human NMF Avg Gene Weights"
-)
-  
-png(file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/210706_Human_NMF_Variance_GeneWeights.png")  
-heatmap.2(top20_var_human_featloadings_matrix,col=viridis, trace='none', margin=c(11,11),
-distfun=function(c) as.dist(1-cor(t(c))) , xlab = "NMF Patterns", 
-srtCol = 45, cexCol=2,cexRow=1.7, scale = "row",
-hclustfun=function(x) hclust(x, method="average"), main = "Most Variable Genes Across NMF Patterns", cex.main = 6
-)
-dev.off()
-
-ggsave(file = "210628_Human_NMF_Top20Variance_GeneWeights.pdf", human_nmf_heatmap2)
-```
-
-```{r}
 
 
-```
 
 ```{r eval=FALSE, include=FALSE}
 ggsave("210706_NMF_human_featloadings_heatmap_bigfont.pdf", human_featloadings_heatmap)
 ```
 
-**NMF Projection, Mouse onto Human**  
+### NMF Projection: Mouse onto Human  
 The mouse NMF patterns can then be projected onto the human data  
 Scatterplot to compare patterns
 ```{r}
@@ -575,15 +556,16 @@ ggsave("210628_Scatterplot_Projected_MousetoHuman_Patterns3and9.pdf", projection
 
 ```
 PCA to Compare Projected Patterns
-```{r}
+```{r eval=FALSE, include=FALSE}
 #want pre ad post in the pattern names for row names
 projection_NMF_mouse2human_df <- projection_NMF %>% rownames_to_column(var = "Names") %>% pivot_longer(starts_with("Pattern_"), names_to = "Patterns", values_to = "Projections") %>% dplyr::select(c("Names",  "Patterns", "Projections")) %>% unite("PrePost_Patterns", "Patterns", "Names", sep = "_", remove = FALSE) %>% pivot_wider("PrePost_Patterns", names_from = "Patterns", values_from = "Projections")
+```
 
-
+```{r}
 #PCA
 projection_NMF_mouse2human_pca <- prcomp(human_NMF$projection)
 projection_NMF_mouse2human_pca_plot <- ggplot(as.data.frame(projection_NMF_mouse2human_pca$x), aes(x=PC1,y=PC2, colour = "red", "blue")) +geom_point()
-projection_NMF_mouse2human_pca_plot
+#projection_NMF_mouse2human_pca_plot
 
 pc_human <- prcomp(t(human_symbol_data))
 pc_mouse <- prcomp(t(conv_mouse))
@@ -593,18 +575,6 @@ pca_mouse_df <- data.frame(cbind(pc_mouse$x, mouse_info))
 
 ```
 
-Scatterplot Projected Pattern Comparison
-```{r}
-projection_colors <- scale_colour_manual(values = c("red","green","blue","black"),
-guide = guide_legend(title="Lineage"))
-
-projection_plot <- ggplot(projection_NMF, aes(x = Pattern_1, y = Pattern_2, colour = PrePost)) +
-  geom_point(size=5) + 
-  projection_colors + 
-  theme(legend.position = c(0,0), legend.justification = c(0,0), panel.background = element_rect(fill = "white"), legend.direction = "horizontal")
-projection_plot
-
-```
 Boxplot to Compare Pre/Post Projected Patterns
 ```{r}
 NMF_projection_long <- projection_NMF %>% rownames_to_column(., var = "Sample") %>% pivot_longer(starts_with("Pattern_"), names_to = "Patterns", values_to = "Factors") %>% unite( col = "Exercise_Pattern", Patterns, PrePost, sep = "_", remove = FALSE)
@@ -625,20 +595,6 @@ projection_NMF_boxplot
 ggsave("210624_NMF_Projected_MousetoHuman.pdf", projection_NMF_boxplot)
 ```
 
-Heatmap to Compare Pre/Post Projected Patterns
-```{r}
-NMF_projection_long$log.weight <- log(NMF_projection_long$Factors)
-
-NMF_projection_heatmap <- ggplot(NMF_projection_long, mapping = aes(x = Exercise_Pattern, y = Factors, fill = log.weight)) + 
-  geom_tile() +
-  labs(title = "NMF Projection") +
-  xlab(label = "Patterns") + 
-  ylab(label = "Projected Human Samples") + 
-  theme(axis.text.x = element_text(angle = 45, vjust = 0.5), axis.text.y = element_text(size = 5)) + 
-  scale_fill_viridis(option = "plasma")
-NMF_projection_heatmap
-
-```
 
 Scatterplot to Compare Pre/Post Projected Patterns
 ```{r}
@@ -653,7 +609,7 @@ projection_NMF_scatterplot
 
 ```
 
-**NMF Projection, Human onto Mouse**  
+### NMF Projection: Human onto Mouse  
 ```{r}
 mouse_NMF <- projectR(as.matrix(conv_mouse),loadings=AP_human, full=TRUE,
                      dataNames=rownames(conv_mouse))
@@ -666,8 +622,8 @@ projection_plot_human2mouse
 ```
 
 
-**PC Projection**  
-Another method to projections. Principal components are found for mouse and human data. Mouse PC's are used for loadings and projected onto human data.  
+### PC Projection  
+Another ProjectR method to projections. Principal components are found for mouse and human data. Mouse PC's are used for loadings and projected onto human data.  
   
 Make PC's
 ```{r}
@@ -706,7 +662,7 @@ ggsave("210706_PCA_Method_Mouse_Projected_onto_Human_bigfonts.pdf", projected_PC
 
 
 
-**ProjectR Clustering Method**  
+### Clustering Projection  
 There’s 2 methods: cluster2pattern finds correlation of each gene’s expression by mean of cluster to define continuous weights. Then intersector tests significant overlap between 2 clustering objects. For these purposes, I think cluster2pattern is better for finding what we want (differences between clusters rather than overlaps). Requires a clustering object first.
 ```{r, message = FALSE}
 #TOP 50 DIFFERENTIALLY EXPRESSED GENES
@@ -746,6 +702,9 @@ pdf(file = "Mouse_Hclust_Dendrogram.pdf", hclust_dendro_sig)
 
 
 **Clustering in Human Data**  
+Hierarchical Clustering with Bootstrapped p values  
+**pvclust()** provides p-values for hierarchical clustering based on multiscale bootstrap resampling-clusters that are highly supported by the data will have large p values. (Note: pvclust clusters columns, not rows: transpose your data before using)  
+
 ```{r}
 #TOP 50 DIFFERENTIALLY EXPRESSED GENES
 human_stdevs <- apply(human_symbol_data, 1, sd)
@@ -754,18 +713,11 @@ human_stdev <- slice_max(human_stdev, order_by = human_stdevs, n = 50)
 human_top250 <- human_stdev[,-17]
 write.csv2(human_top250, file = "Human_Top50_DEG.csv")
 
-#  Hierarchical Clustering with Bootstrapped p values
-#pvclust() provides p-values for hierarchical clustering based on multiscale bootstrap resampling-clusters that are highly supported by the data will have large p values.
-#pvclust clusters columns, not rows: transpose your data before using
 
 fit_human <- pvclust(human_top250, method.hclust="average",
    method.dist="euclidean")
 human_hclust_dendro_sig <- plot(fit_human) 
 #pvrect(fit, alpha=.90) # add rectangles around groups highly supported by the data
-
-#pdf(file = "Mouse_Hclust_Dendrogram.pdf", hclust_dendro_sig)
-
-##LETSDOAHEATMAP!! :) 
 
 ```
 
@@ -803,38 +755,13 @@ ggsave("Mouse_Clusters_Projection.pdf", cluster_projection_plot)
 
 ```
 
-## Using Differentially Expressed Genes for Functional Enrichment Analysis ##
 
-**AnnotationDbi for DESeq2 Mouse Results**  
-
-```{r, message=FALSE}
-#Pull DESeq2 results for LFC and P-values, get rid of decimals in ensembl ID's
-mouse_de <- cbind(LFC = mouse_res$log2FoldChange, Pval = mouse_res$pvalue)
-row.names(mouse_de) <- row.names(mouse_res)
-rownames(mouse_de) <- sub("\\..*", "", rownames(mouse_de))
-mouse_de_df <- mouse_de %>% as.data.frame() %>% rownames_to_column(., "ENSEMBL")
-
-```
-
-```{r}
-#Join annotations to DE gene list
-mouse_symbol_de <- inner_join(mouse_anno, mouse_de_df, by = "ENSEMBL")
-mouse_symbol_GO_de <- column_to_rownames(mouse_symbol_de, var = "SYMBOL")
-#This table has ensembl gene ID's, GO info, differential expression and p-values
-write.csv(mouse_symbol_GO_de, "Mouse_DE_GO.csv")
-#Only need LFC and p-values for FEA
-mouse_symbol_de <- mouse_symbol_GO_de[,c(5,6)]
-```
-
-
-**Functional Enrichment Analysis**  
+### Functional Enrichment Analysis  
 
 Mouse ggprofiler https://biit.cs.ut.ee/gprofiler/page/r  
 g:Profiler uses all the genes annotated to that term as an input (in this case about six hundred human genes associated to heart development). Fully numeric identifiers need to be prefixed with the corresponding namespace. g:Profiler will automatically prefix all the detected numeric IDs using the prefix determined by the selected numeric namespace parameter.  
 gost enables to perform functional profiling of gene lists. The function performs statistical enrichment analysis to find over-representation of functions from Gene Ontology, biological pathways like KEGG and Reactome, human disease annotations, etc. This is done with the hypergeometric test followed by correction for multiple testing.  
 In order to reduce the amount of false positives, a multiple testing correction method is applied to the enrichment p-values. By default, our tailor-made algorithm g:SCS is used (correction_method = "gSCS" with synonyms g_SCS and analytical), but there are also options to apply the Bonferroni correction (correction_method = "bonferroni") or FDR (correction_method = "fdr"). The adjusted p-values are reported in the results.  
-<br>
-Select each pattern and combine with its standard deviation ((note: might not have been necessary to get standard deviation...))  
 ```{r eval=FALSE, include=FALSE}
 #input needs to be a dataframe with genes and p values, so each pattern will need its own dataframe
 #sample_factors has already been extracted from AP_human, need to do the same with the stdev
@@ -853,8 +780,9 @@ pattern8_mouse <- dplyr::select(mouse_feature, Pattern_8) %>% cbind(., StdDev = 
 pattern9_mouse <- dplyr::select(mouse_feature, Pattern_9) %>% cbind(., StdDev = mouse_feature_stdev$Pattern_9)
 ```
 
-Filtering for highest weighted genes
-```{r}
+
+```{r eval=FALSE, include=FALSE}
+#Filtering for highest weighted genes
 #FILTERING BY STD DEV... Should I have done this? Try without filtering?
 #want to look at just the significant genes of patterns 3 and 1
 #pattern3_sig_mouse <- pattern3_mouse[pattern3_mouse$StdDev < 0.05,]
@@ -862,20 +790,21 @@ Filtering for highest weighted genes
 
 #narrow down significant genes list by selecting the highest weighted genes
 #REDO, and try instead of std dev filtering
-top150_mouse_pattern1 <- slice_max(pattern1_mouse, order_by = Pattern_1, n = 150)
-top150_mouse_pattern2 <- slice_max(pattern2_mouse, order_by = Pattern_2, n = 150)
-top150_mouse_pattern3 <- slice_max(pattern3_mouse, order_by = Pattern_3, n = 150)
-top150_mouse_pattern4 <- slice_max(pattern4_mouse, order_by = Pattern_4, n = 150)
-top150_mouse_pattern5 <- slice_max(pattern5_mouse, order_by = Pattern_5, n = 150)
-top150_mouse_pattern6 <- slice_max(pattern6_mouse, order_by = Pattern_6, n = 150)
-top150_mouse_pattern7 <- slice_max(pattern7_mouse, order_by = Pattern_7, n = 150)
-top150_mouse_pattern8 <- slice_max(pattern8_mouse, order_by = Pattern_8, n = 150)
-top150_mouse_pattern9 <- slice_max(pattern9_mouse, order_by = Pattern_9, n = 150)
+#top150_mouse_pattern1 <- slice_max(pattern1_mouse, order_by = Pattern_1, n = 150)
+#top150_mouse_pattern2 <- slice_max(pattern2_mouse, order_by = Pattern_2, n = 150)
+#top150_mouse_pattern3 <- slice_max(pattern3_mouse, order_by = Pattern_3, n = 150)
+#top150_mouse_pattern4 <- slice_max(pattern4_mouse, order_by = Pattern_4, n = 150)
+#top150_mouse_pattern5 <- slice_max(pattern5_mouse, order_by = Pattern_5, n = 150)
+#top150_mouse_pattern6 <- slice_max(pattern6_mouse, order_by = Pattern_6, n = 150)
+#top150_mouse_pattern7 <- slice_max(pattern7_mouse, order_by = Pattern_7, n = 150)
+#top150_mouse_pattern8 <- slice_max(pattern8_mouse, order_by = Pattern_8, n = 150)
+#top150_mouse_pattern9 <- slice_max(pattern9_mouse, order_by = Pattern_9, n = 150)
 
 ```
 
-Making named lists for gost() input
-```{r}
+
+```{r eval=FALSE, include=FALSE}
+#Making named lists for gost() input
 #named list so genes names are retained and not changed to query_1 from gost()
 #pattern3_sig_mouse <- as.list(pattern3_sig_mouse, all.names = TRUE)
 top150_mouse_pattern1_names <- rownames(top150_mouse_pattern1) %>% as.list()
@@ -899,27 +828,9 @@ names(top150_mouse_pattern9_names) <- rownames(top150_mouse_pattern9)
 
 ```
 
-#delete afterwards, using as reference
+
 ```{r eval=FALSE, include=FALSE}
-gost_res_mouse <- gost(query = pattern3_mouse_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
-                user_threshold = 0.05, correction_method = "g_SCS", 
-                domain_scope = "annotated", custom_bg = NULL, 
-                numeric_ns = "", sources = c("REAC", "KEGG", "CORUM"), as_short_link = FALSE)
-head(gost_res_mouse$result)
-gost_res_mouse$result
-
-#results for each pattern was saved
-#mouse_pattern5_rkc <- gost_res_mouse$result
-mouse_pattern3_GO <- gost_res_mouse$result
-
-gost_mouse_pattern3_top150gene_fea <- gost_res_mouse$result
-#conversion to make this dataframe writable for csv
-gost_mouse_pattern3_top150gene_fea <- apply(gost_mouse_pattern3_top150gene_fea,2,as.character)
-write.csv2(gost_mouse_pattern3_top150gene_fea, file =  "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/gost_mouse_pattern6_top150gene_fea.csv")
-```
-
-gost() run for each pattern
-```{r}
+#gost() run for each pattern
 gost_res_mouse_1 <- gost(query = top150_mouse_pattern1_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
                 user_threshold = 0.05, correction_method = "g_SCS", 
                 domain_scope = "annotated", custom_bg = NULL, 
@@ -977,8 +888,8 @@ gost_mouse_publish <- publish_gostplot(gost_plot_mouse, highlight_terms = c("GO:
 gost_mouse_publish
 ```
 
-Human ggprofiler https://biit.cs.ut.ee/gprofiler/page/r
-```{r eval=FALSE, include=FALSE}
+Human FEA using [gprofiler](https://biit.cs.ut.ee/gprofiler/page/r)
+```{r}
 #input needs to be a dataframe with genes and p values, so each pattern will need its own dataframe
 #sample_factors has already been extracted from AP_human, need to do the same with the stdev
 human_feature <- as.data.frame(AP_human@featureLoadings)
@@ -1021,7 +932,7 @@ names(human_pattern9_names) <- human_pattern9$Genes
 ```
 
 Human gprofiler gost() runs
-```{r eval=FALSE, include=FALSE}
+```{r}
 #look into exclude_iea and correction_methods
 gost_res_2 <- gost(query =  human_pattern2_names, organism = "hsapiens", ordered_query = FALSE, significant = TRUE, exclude_iea = FALSE, measure_underrepresentation = FALSE, evcodes = FALSE, 
                 user_threshold = 0.05, correction_method = "g_SCS", 
@@ -1058,10 +969,10 @@ Human alluvial plot - Patterns 2, 5, and 9
 #combine dataframes
 gost_pattern259_all <- rbind(gost_pattern2, gost_pattern5, gost_pattern9)
 #looking at just kegg results
-gost_pattern259 <- dplyr::filter(gost_pattern259, source == "KEGG")
+gost_pattern259 <- dplyr::filter(gost_pattern259_all, source == "KEGG")
 
-gost_pattern259_table <- apply(gost_pattern259, 2, as.character)
-write.csv2(gost_pattern259_table, file = "gost_human_results_patterns259.csv")
+#gost_pattern259_table <- apply(gost_pattern259, 2, as.character)
+#write.csv2(gost_pattern259_table, file = "gost_human_results_patterns259.csv")
 ```
 
 ```{r fig.align="center", echo = FALSE,fig.width = 7}
@@ -1084,7 +995,7 @@ ggalluvial_KEGG_259
 ```
 
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 ggsave("210706_human_patterns_259_kegg_alluvialplot_bigfont.pdf", ggalluvial_KEGG_259)
 ```
 
@@ -1171,3 +1082,8 @@ ggalluvial_GO
 ggsave("/Users/eramsey/Desktop/R21_210302/PreliminaryR21/210616_gprofiler_mouse_patterns3thru6_FEA_GOsources_alluvial.pdf", ggalluvial_GO)
 
 ```
+
+### Versions  
+```{r}
+installed.packages()[names(sessionInfo()$otherPkgs), "Version"]
+``` 
