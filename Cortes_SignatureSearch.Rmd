@@ -2,7 +2,11 @@
 title: "SignatureSearch Cortes"
 author: "Lizzy Ramsey"
 date: "5/8/2021"
-output: html_document
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    
 ---
   
   
@@ -35,7 +39,7 @@ System which operations were done on: MacBook Pro (16-inch, 2019),  Processor 2.
 eh <- ExperimentHub()
 cmap <- eh[["EH3223"]]; cmap_expr <- eh[["EH3224"]]
 ```
-Load in data
+### Load in data  
 ```{r}
 #DESeq2 results
 human_deseq2_res <- read.csv("210518_Human_DESeq_Res.csv", header = TRUE, row.names = 1)
@@ -47,7 +51,7 @@ rownames(human_LFC) <- sub("\\..*", "", rownames(human_LFC))
 
 ```
 
-Find up and down genes
+**Find up and down genes**
 ```{r}
 #showing up empty for LFC > 2 and p-adj < 0.05, so changed LFC to 1.5
 human_up_df <- human_LFC[human_LFC$log2FoldChange >1 & human_LFC$padj <0.05,]
@@ -94,7 +98,7 @@ cmap_res
 ```
 This table contains the search results for each perturbagen (here drugs) in the reference database ranked by their signature similarity to the query. For the CMAP method, the similarity metrics are raw_score and scaled_score. The raw score represents the bi-directional enrichment score (Kolmogorov-Smirnov statistic) for a given up/down query signature. Under the scaled_score column, the raw_score has been scaled to values from 1 to -1 by dividing positive scores and negative scores with the maximum positive score and the absolute value of the minimum negative score, respectively. The remaining columns in the search result table contain the following information. pert: name of perturbagen (e.g. drug) in the reference database; cell: acronym of cell type; type: perturbation type, e.g. compound treatment is trt_cp; trend: up or down when reference signature is positively or negatively connected with the query signature, respectively; N_upset or N_downset: number of genes in the query up or down sets, respectively; t_gn_sym: gene symbols of the corresponding drug targets.  
   
-Visualize GESS Results
+**Visualize GESS Results**
 ```{r}
 #drugs_top15 <- unique(cmap_res$pert)[1:15]
 drugs_top30 <- unique(result(cmap)$pert)[1:30]
@@ -121,6 +125,7 @@ up_drug_cmap <- unique(cmap_res_up$pert)[1:20]
 gess_res_vis(cmap_res, drugs = up_drug_cmap, col = "scaled_score")
 ```
 
+**TSEA Network Visualization**
 ```{r}
 dtnetplot(drugs = drugs(tsea_kegg_cmap_human), set = "hsa00140", 
           desc="Steroid hormone biosynthesis")
@@ -141,14 +146,14 @@ write.csv2(result(dsea_res_cmap), file =  "/Users/eramsey/Desktop/R21_210302/Pre
 
 ```
 
-
+**DSEA Network Visualization**
 ```{r}
 dtnetplot(drugs = drugs(dsea_res_cmap), set = "hsa00140", 
           desc="Steroid hormone biosynthesis")
 
 ```
 
-##LINCS Method  
+### LINCS Method  
 Subramanian et al. (2017) introduced a more complex GESS algorithm, here referred to as LINCS. While related to CMAP, there are several important differences among the two approaches. First, LINCS weights the query genes based on the corresponding differential expression scores of the GEPs in the reference database (e.g. LFC or z-scores). Thus, the reference database used by LINCS needs to store the actual score values rather than their ranks. Another relevant difference is that the LINCS algorithm uses a bi-directional weighted Kolmogorov-Smirnov enrichment statistic (ES) as similarity metric.  
 ```{r}
 qsig_lincs_human <- qSig(query =list(upset=as.character(human_up_list), downset=as.character(human_down_list)), 
@@ -180,7 +185,7 @@ write.csv(lincs_res, file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/si
 drugs_lincs_top <- unique(lincs_res$pert)[1:20]
 gess_res_vis(lincs_res, drugs = drugs_lincs_top, col = "NCS")
 ```
-
+**Top "Down" Trends**
 ```{r}
 lincs_res_down <- lincs_res[lincs_res$trend == "down",]
 down_drug_lincs <- unique(lincs_res_down$pert)[1:20]
@@ -209,12 +214,12 @@ dsea_res_lincs <- dsea_hyperG(drugs = drugs_lincs_topdown, type = "KEGG",
 result(dsea_res_lincs)
 #0 rows
 ```
-
+**Top "Up" Trends**
 ```{r}
 drugs_lincs_topup <- unique(lincs_res_up$pert)[1:20]
 gess_res_vis(lincs_res, drugs = drugs_lincs_topup , col = "NCS")
 ```
-
+**TSEA "Up" Trends**
 ```{r}
 tsea_lincs_up <- tsea_dup_hyperG(drugs = drugs_lincs_topup[1:20], type = "KEGG",
                                pvalueCutoff=0.5, qvalueCutoff = 0.5)
@@ -222,7 +227,7 @@ result(tsea_lincs_up)
 write.csv2(result(tsea_lincs_up), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210526_lincs_up_tsea.csv" )
 ```
 
-
+**DSEA "Up" Trends**
 ```{r}
 dsea_lincs_up <- dsea_hyperG(drugs = drugs_lincs_topup, type = "KEGG", 
                             pvalueCutoff = 0.05 , qvalueCutoff = 0.05, 
@@ -230,7 +235,7 @@ dsea_lincs_up <- dsea_hyperG(drugs = drugs_lincs_topup, type = "KEGG",
 result(dsea_lincs_up)
 
 ```
-##GCMAP  
+### GCMAP  
 The Bioconductor gCMAP (Sandmann et al. 2014) package provides access to a related but not identical implementation of the original CMAP algorithm proposed by Lamb et al. (2006). It uses as query a rank transformed GEP and the reference database is composed of the labels of up and down regulated DEG sets. This is the opposite situation of the CMAP method, where the query is composed of the labels of up and down regulated DEGs and the database contains rank transformed GESs.  
 First, create matrix with zscores  
 ```{r}
@@ -250,6 +255,7 @@ IDS_V2 <-IDS[!is.na(IDS)]
 duplicated_genes <- unique(IDS_V2[duplicated(IDS_V2)])
 names(LOG_V2) <- IDS_V2
 
+#function Jen had used, did not need for my data, though
 #fix<- c()
 #for (i in 1:length(duplicated_genes)){
 #  group <- LOG_V2[names(LOG_V2) == duplicated_genes[i]]
@@ -260,6 +266,7 @@ names(LOG_V2) <- IDS_V2
 ```
 
 ```{r}
+#continued data wrangling Jen used that I did not need to, skipped right to the last part (I did not have duplicates)
 #LOG_V3 <- LOG_V2[!names(LOG_V2) %in% duplicated_genes]
 #LOG_V4 <- c(LOG_V3, fix)
 #LOG_V5 <- as.data.frame(LOG_V4)
@@ -275,7 +282,8 @@ qsig_gcmap <- qSig(query = as.matrix(LOG_V5), gess_method = "gCMAP", refdb = "li
 gcmap <- gess_gcmap(qsig_gcmap, higher = 1, lower = -1)
 result(gcmap)
 ```
-The columns in the corresponding search result table, that are specific to the gCMAP method, contain the following information. effect: scaled bi-directional enrichment score corresponding to the scaled_score under the CMAP result; nSet: number of genes in the reference gene sets after applying the higher and lower cutoff; nFound: number of genes in the reference gene sets that are present in the query signature; signed: whether the gene sets in the reference database have signs, e.g. representing up and down regulated genes when computing scores.
+The columns in the corresponding search result table, that are specific to the gCMAP method, contain the following information. effect: scaled bi-directional enrichment score corresponding to the scaled_score under the CMAP result; nSet: number of genes in the reference gene sets after applying the higher and lower cutoff; nFound: number of genes in the reference gene sets that are present in the query signature; signed: whether the gene sets in the reference database have signs, e.g. representing up and down regulated genes when computing scores.  
+**Visualize GESS Results**
 
 ```{r}
 gcmap_res <- result(gcmap)
@@ -328,7 +336,7 @@ result(hyperG_k_res_gcmap_up)
 dtnetplot(drugs = drugs(hyperG_k_res_gcmap_up), set = "hsa04921", 
           desc="Oxytocin signaling pathway")
 ```
-##Fisher Method  
+### Fisher Method  
 Fisher's exact test (Graham J. G. Upton 1992) can also be used to search a GS-DB (gene set database) for entries that are similar to a GS-Q (gene set query). In this case both the query and the database are composed of gene label sets, such as DEG sets.  
 ```{r}
 qsig_fisher <- qSig(query = as.matrix(LOG_V5), gess_method = "Fisher", refdb = "lincs")
@@ -339,7 +347,8 @@ qsig_fisher <- qSig(query = as.matrix(LOG_V5), gess_method = "Fisher", refdb = "
 fisher <- gess_fisher(qSig = qsig_fisher, higher = 1, lower = -1)
 result(fisher)[1:50,]
 ```
-The columns in the result table specific to the Fisher method include the following information. pval: p-value of the Fisher's exact test; padj: p-value adjusted for multiple hypothesis testing using R's p.adjust function with the Benjamini & Hochberg (BH) method; effect: z-score based on the standard normal distribution; LOR: log odds ratio.
+The columns in the result table specific to the Fisher method include the following information. pval: p-value of the Fisher's exact test; padj: p-value adjusted for multiple hypothesis testing using R's p.adjust function with the Benjamini & Hochberg (BH) method; effect: z-score based on the standard normal distribution; LOR: log odds ratio.  
+**Visualize GESS Results**
 ```{r}
 write.csv2(result(fisher), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_fisher_res_human.csv")
 fisher_res <- result(fisher)
@@ -365,7 +374,7 @@ result(dup_rct_res_fisher_over)
 
 ```
 
-
+**Fisher DSEA**
 ```{r}
 hyperG_k_res_fisher_over <- dsea_hyperG(drugs = drugs_top20_fisher_over[1:20], type = "KEGG", 
                             pvalueCutoff = 0.05 , qvalueCutoff = 0.05, 
@@ -385,14 +394,14 @@ dup_rct_res_fisher_under <- tsea_dup_hyperG(drugs = drugs_top20_fisher_under[1:2
 result(dup_rct_res_fisher_under)
 
 ```
-##Spearman Correlation Method  
+### Spearman Correlation Method  
 
 ```{r}
 qsig_sp <- qSig(query = as.matrix(LOG_V5), gess_method = "Cor", refdb = "lincs")
 sp <- gess_cor(qSig=qsig_sp, method="spearman")
 result(sp)[1:50,]
 ```
-
+**Visualize GESS Results**
 ```{r}
 sp_res <- result(sp)
 write.csv2(result(sp), file = "/Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/210604_spearman_res_human.csv")
@@ -442,7 +451,7 @@ hyperG_k_res_sp_up <- dsea_hyperG(drugs = drugs_top20_sp_up[1:20], type = "KEGG"
 result(hyperG_k_res_sp_up)
 
 ```
-**Looking for Drug Resuls in Two Methods**
+**Looking for Drug Results in Two Methods**
 ```{r}
 intersect(up_drug_cmap, up_drug_lincs)
 ```
@@ -481,43 +490,23 @@ intersect(up_drug_gcmap, up_drug_fisher)
 intersect(up_drug_sp, up_drug_fisher)
 ```
 
-**Comparing FEA Results**
+### Comparing FEA Results Amongst Methods
 ```{r}
 table_list = list("CMAP" = result(tsea_kegg_cmap_human), "LINCS" = result(tsea_lincs_up), "gCMAP" = result(dup_rct_res_gcmap_up), "Fisher" = result(dup_rct_res_fisher_over), "Spearman" = result(dup_rct_res_sp_up))
 comp_fea_res(table_list, rank_stat = "pvalue", Nshow = 20)
 
 ```
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 dsea_table_list <- list("CMAP" = result(dsea_res_cmap), "gCMAP" = result(dup_rct_res_gcmap_up) )
 #no DSEA results for Fisher, Spearman, or LINCS methods
 
 comp_fea_res(dsea_table_list, rank_stat = "pvalue", Nshow = 20)
 ```
 
-Alluvial Plot  
-```{r}
-#Alluvial Plot
-#need a character vector of annotations for alluvial
-spearman_KEGG_list <- spearman_tsea_up$Description
-human_GO_t <- t(human_symbol_data_GO)
-
-
-ggalluvial <- ggplot(data = spearman_tsea_up,
-       aes(y = Count, axis1 = Description, axis2 = CON_post4) +
-  scale_x_discrete(limits = c("Sample", "PrePost Exercise"), expand = c(.2, .05)) +
-  xlab(" ") +
-  geom_alluvium(aes(fill = BMI)) +
-  geom_stratum() +
-  geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
-  theme_minimal() +
-  ggtitle(" "))
-
-
-```
 
 Jen's code to recreate figure  
-```{r}
+```{r eval=FALSE, include=FALSE}
 #geom_point(aes(size = magnitude)) +
 #scale_size(range = c(1,5))
 plot_recreate_2 <- ggplot(result(lincs_human)[1:30,], aes(x=reorder(Description, WTCS_Pval), y=WTCS, color= WTCS_Pval))+ geom_point() +coord_flip()  + ggtitle("Pathway Enrichment") + labs(color = "-log10 p-value") + scale_color_viridis(option="plasma")+ theme_bw() +theme(text = element_text(size=17)) + scale_size(range = c(5,10))
@@ -528,7 +517,7 @@ table_list = list("CMAP" = result(tsea_kegg_cmap_human), "LINCS" = result(tsea_l
 comp_fea_res(table_list, rank_stat = "pvalue", Nshow = 20)
 ```
 
-
+**Plot for Cortes R01 July 2021**
 ```{r}
 library(tidyverse)
 #code to get the lincs data and plot that I've been using
@@ -581,5 +570,9 @@ Locally /Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs
 Operations complete: 210604  
   
   **Versions**  
-  sessionInfo()
+```{r}
+
+installed.packages()[names(sessionInfo()$otherPkgs), "Version"]
+  
+```
   
