@@ -22,7 +22,7 @@ library(EnsDb.Hsapiens.v75)
 library(AnnotationDbi)
 ```
 
-### Purpose
+### Purpose  
 Using differentially expressed genes from pre/post exercise human muscle, SignatureSearch was used to find drugs of similar perturbation signatures as possible candidates for Cortes R01 prelim data analysis for "exercise mimetics" for Alzheimers Disease.  
 Dataset:  GSE108643 (RNAseq counts normalized and DEG analysis in R21_Prelim_210304 markdown)  
 GitHub: https://github.com/lizzyjoan/PreliminaryR21  
@@ -500,7 +500,7 @@ comp_fea_res(dsea_table_list, rank_stat = "pvalue", Nshow = 20)
 ```
 
 
-### Plot for Cortes R01 July 2021
+### Plot for Cortes R01 July 2021  
 ```{r}
 library(tidyverse)
 #code to get the lincs data and plot that I've been using
@@ -546,7 +546,7 @@ top_pathways
 ggsave(filename = "210706_SignatureSearch_TopPathways.pdf", top_pathways)
 ```
 
-## END
+## END  
 Location of final scripts:
 Locally /Users/eramsey/Desktop/R21_210302/PreliminaryR21/signatureSearch_outputs/  
   
