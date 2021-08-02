@@ -13,26 +13,21 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 BiocManager::install("signatureSearch")
-  library(signatureSearch)
-  library(ggplot2)
+  
+library(signatureSearch)
+library(ggplot2)
 library(ExperimentHub); library(rhdf5)
 library(ensembldb)
 library(EnsDb.Hsapiens.v75)
 library(AnnotationDbi)
 ```
 
-## Purpose
+### Purpose
 Using differentially expressed genes from pre/post exercise human muscle, SignatureSearch was used to find drugs of similar perturbation signatures as possible candidates for Cortes R01 prelim data analysis for "exercise mimetics" for Alzheimers Disease.  
-Dataset:  
-GitHub:  
+Dataset:  GSE108643 (RNAseq counts normalized and DEG analysis in R21_Prelim_210304 markdown)  
+GitHub: https://github.com/lizzyjoan/PreliminaryR21  
 System which operations were done on: MacBook Pro (16-inch, 2019),  Processor 2.4 GHz 8-Core Intel Core i9, Memory 64 GB 2667 MHz DDR4, Graphics AMD Radeon Pro 5300M 4 GB Intel UHD Graphics 630 1536 MB  
 
-**Contents**  
-- CMAP Method  
-- LINCS Method  
-- gCMAP Method  
-- Fisher Exact Test Method  
-- Spearman Correlation Method  
 
 ```{r}
 #reference database
@@ -505,19 +500,7 @@ comp_fea_res(dsea_table_list, rank_stat = "pvalue", Nshow = 20)
 ```
 
 
-Jen's code to recreate figure  
-```{r eval=FALSE, include=FALSE}
-#geom_point(aes(size = magnitude)) +
-#scale_size(range = c(1,5))
-plot_recreate_2 <- ggplot(result(lincs_human)[1:30,], aes(x=reorder(Description, WTCS_Pval), y=WTCS, color= WTCS_Pval))+ geom_point() +coord_flip()  + ggtitle("Pathway Enrichment") + labs(color = "-log10 p-value") + scale_color_viridis(option="plasma")+ theme_bw() +theme(text = element_text(size=17)) + scale_size(range = c(5,10))
-plot_recreate_2
-#+ xlab(Pathway) + ylab(FE_label)
-
-table_list = list("CMAP" = result(tsea_kegg_cmap_human), "LINCS" = result(tsea_lincs_up), "gCMAP" = result(dup_rct_res_gcmap_up), "Fisher" = result(dup_rct_res_fisher_over), "Spearman" = result(dup_rct_res_sp_up))
-comp_fea_res(table_list, rank_stat = "pvalue", Nshow = 20)
-```
-
-**Plot for Cortes R01 July 2021**
+### Plot for Cortes R01 July 2021
 ```{r}
 library(tidyverse)
 #code to get the lincs data and plot that I've been using
