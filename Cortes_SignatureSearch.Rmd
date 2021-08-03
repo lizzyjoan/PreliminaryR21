@@ -26,7 +26,7 @@ library(AnnotationDbi)
 Using differentially expressed genes from pre/post exercise human muscle, SignatureSearch was used to find drugs of similar perturbation signatures as possible candidates for Cortes R01 prelim data analysis for "exercise mimetics" for Alzheimers Disease.  
 Dataset:  GSE108643 (RNAseq counts normalized and DEG analysis in R21_Prelim_210304 markdown)  
 GitHub: https://github.com/lizzyjoan/PreliminaryR21  
-System which operations were done on: MacBook Pro (16-inch, 2019),  Processor 2.4 GHz 8-Core Intel Core i9, Memory 64 GB 2667 MHz DDR4, Graphics AMD Radeon Pro 5300M 4 GB Intel UHD Graphics 630 1536 MB  
+System which operations were done on: MacBook Pro (16-inch, 2019),  Processor 2.4 GHz 8-Core Intel Core i9, Memory 64 GB 2667 MHz DDR4, Graphics AMD Radeon Pro 5300M 4 GB Intel UHD Graphics 630 1536 MB
 
 
 ```{r}
