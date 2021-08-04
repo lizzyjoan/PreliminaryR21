@@ -33,7 +33,7 @@ BiocManager::install("org.Hs.eg.db")
 library(org.Hs.eg.db)
 ```
 
-### Purpose
+### Purpose  
 Publicly available mouse and human datasets of pre/post gene expression in skeletal muscle were used to project mouse patterns onto human data using ProjectR package. The end goal is to find latent variables in mouse gene expression to project onto human data to make mouse data better recapitulate human data.  
 Built with R `r getRversion()`  
 [Lab notebook](https://docs.google.com/document/d/1YcSzWmBNcq038HekdMqUrlnSpORaMbX597MM1hvmTdU/edit)  
@@ -81,6 +81,7 @@ mouse_info <- column_to_rownames(mouse_info, var = "Name")
 
 ```
 
+
 ### Read in Human Data  
 ```{r Human_ReadIn}
 #HUMAN data read in
@@ -90,9 +91,7 @@ human_info <- read.csv("human_info.csv", header = TRUE, sep = ",")
 human_info <- human_info[c(1:58),]
 #make new label names for human samples
 human_info_test <- unite(human_info, col = Name, BMI, PrePost, sep = "_", remove = FALSE)
-##NEED TO FIGURE OUT how to add sequence of 1-3 for every 3 columns to give unique names
-#human_info_test <- lapply(human_info_test$Name, c(1:3), paste())
-#rep(1:14, 4) and then paste0
+
 numbered_list <- c(1:14, 1:15, 1:14, 1:15)
 names <- paste(human_info_test$Name, numbered_list, sep = "_")
 human_info_test[["Names"]] <- names
@@ -157,12 +156,20 @@ write.csv(mouse_info, file= "New_Mouse_Metadata")
 
 ```
 
+
 **AnnotationDbi for Mouse Symbols**  
+AnnotationDbi::idConverter can convert from one ID type of a species and map to orthologous genes and convert to another gene ID type... However, for human, it uses 'hom.Mm.inp.db' and this database is deprecated and no longer works on Bioconductor past version 3.12  
+Just leaving this note because because a functioning version of this would be wonderful  
+```{r include=FALSE}
+#mouse_anno_test <- AnnotationDbi::idConverter(rownames(mouse_vsd_matrix), srcSpecies = "MUSMU", destSpecies = "HOMSA", srcIDType="ENSEMBL", destIDType="EG")
+```
+
+
+Lengthy process to convert ID's, remove duplicates, and remove NA's, see more info [here](https://hbctraining.github.io/DGE_workshop_salmon/lessons/AnnotationDbi_lesson.html)
 ```{r Mouse_Annotation, message=FALSE}
 #annotation
 library(org.Mm.eg.db)
 #retrieve conversion info from one ID type to another
-#REPLACE test_mouse to mouse_anno
 mouse_anno <- AnnotationDbi::select(org.Mm.eg.db, keys = rownames(mouse_vsd_matrix), columns = c("SYMBOL", "GO"),keytype = "ENSEMBL")
 #determine indices for non-NA genes
 mousenon_na_symbols <- which(is.na(mouse_anno$SYMBOL) == FALSE)
@@ -177,8 +184,9 @@ mouse_symbol <- inner_join(mouse_anno, mouse_vsd2, by = "ENSEMBL")
 #has GO annotation as well as the other gene ID info
 mouse_symbol_GO <- column_to_rownames(mouse_symbol, var = "SYMBOL")
 #removing annotations, symbols for row names, format for analysis
-mouse_symbol <- mouse_symbol_GO[,c(5:20)]
-
+#!!! this may impact analysis???
+#mouse_symbol <- mouse_symbol_GO[,c(5:20)] #THERE WERE 22 COLUMNS AND I CUT OFF TWO OF THEM WITH THIS!!
+mouse_symbol <- mouse_symbol_GO[, !names(mouse_symbol_GO) %in% c("ENSEMBL", "GO", "EVIDENCE", "ONTOLOGY")]
 ```
 
 **AnnotationDbi for Human Symbols**  
@@ -198,8 +206,9 @@ human_symbol_data <- inner_join(symbols_human, human_vsd_matrix, by = "ENSEMBL")
 #has GO annotation as well as the other gene ID info
 human_symbol_data_GO <- column_to_rownames(human_symbol_data, var = "SYMBOL")
 #removing annotations, symbols for row names, format for analysis
-human_symbol_data <- human_symbol_data_GO[,5:62]
-
+#commented out previous method: not as reproducible
+#human_symbol_data <- human_symbol_data_GO[,5:62]
+human_symbol_data <- human_symbol_data_GO[, !names(human_symbol_data_GO) %in% c("ENSEMBL", "GO", "EVIDENCE", "ONTOLOGY")]
 ```
 
 ### Convert Mouse to Human Orthologous Symbols  
@@ -230,10 +239,12 @@ conv_mouse <- conv_mouse[non_na_mouse, ]
 no_dups_mouse <- which(duplicated(conv_mouse$HGNC.symbol) == FALSE)
 #return only non-dup genes using indices
 conv_mouse <- conv_mouse[no_dups_mouse, ]
+#set rownames to NULL to be able to set new rownames with HGNC.symbol
 rownames(conv_mouse) <- NULL 
 conv_mouse <- conv_mouse %>% as.data.frame() %>% column_to_rownames(., var = "HGNC.symbol") 
-conv_mouse <- conv_mouse[,c(2:17)]
-
+# originally subsetted like this vv but it's risk and less reproducible
+#conv_mouse <- conv_mouse[,c(2:17)]
+conv_mouse <- conv_mouse[, !names(conv_mouse) %in% c("MGI.symbol")]
 ```
 
 ### NMF Using CoGAPS for Mouse  
@@ -439,18 +450,6 @@ mouse_featloadings_heatmap
 ggsave("210618_NMF_mouse_featloadings_heatmap.pdf", mouse_featloadings_heatmap)
 ```
 
-Mouse Gene/Feature NMF Matrix Heatmap in ComplexHeatmap
-```{r eval=FALSE, include=FALSE}
-library(devtools)
-library(ComplexHeatmap)
-install_github("jokergoo/ComplexHeatmap")
-Heatmap(mouse_featloadings_long)
-
-#cogaps - heatmap of original data clustered by pattern markers statistic
-AP_mouse_res <- results()
-plotPatternMarkers(AP_mouse, as.matrix(conv_mouse), patternPalette = "PiYG", samplePalette = "BrBG")
-
-```
 
 ### Human NMF Heatmap  
 Heatmap visualization of Amplitude/features/gene weight matrix (CoGAPS output)
@@ -975,7 +974,7 @@ gost_pattern259 <- dplyr::filter(gost_pattern259_all, source == "KEGG")
 #write.csv2(gost_pattern259_table, file = "gost_human_results_patterns259.csv")
 ```
 
-```{r fig.align="center", echo = FALSE,fig.width = 7}
+```{r fig.align="center", fig.width = 7}
 
 ggalluvial_KEGG_259 <- ggplot(gost_pattern259,
        aes(axis1 = pattern, axis2 = term_name, y = query_size)) +
